@@ -156,7 +156,49 @@ static void test_terminal_fallback_size(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Terminal info — values may be empty before loop, but must not be NULL
+// 8. Color info — GetColorInfo and sorted_2d with full struct fields
+// ---------------------------------------------------------------------------
+static void test_color_info(void) {
+    printf("test_color_info...");
+
+    // Palette256 lookup: RED1 (index 196) is pure red — verify name and RGB
+    ftxui_color_info_t r256 = ftxui_color_info_get_256(FTXUI_PALETTE256_RED1);
+    assert(r256.name != NULL);
+    assert(r256.name[0] != '\0');
+    assert(r256.index_256 == 196);
+    assert(r256.red > 0);
+
+    // Palette16 lookup: RED (index 1) — verify name is populated
+    ftxui_color_info_t r16 = ftxui_color_info_get_16(FTXUI_PALETTE16_RED);
+    assert(r16.name != NULL);
+    assert(r16.name[0] != '\0');
+    assert(r16.index_16 == 1);
+
+    // sorted_2d: verify at least one non-padding entry has full fields
+    int rows = 0, cols = 0;
+    ftxui_color_info_t* grid = ftxui_color_info_sorted_2d(&rows, &cols);
+    assert(grid != NULL);
+    assert(rows > 0 && cols > 0);
+    bool found_real = false;
+    for (int i = 0; i < rows * cols; i++) {
+        if (grid[i].index_256 != -1) {
+            assert(grid[i].name != NULL);
+            assert(grid[i].name[0] != '\0');
+            // at least one channel should be non-zero for a real color
+            assert(grid[i].red != 0 || grid[i].green != 0 || grid[i].blue != 0);
+            found_real = true;
+            break;
+        }
+    }
+    assert(found_real);
+    ftxui_color_info_free(grid);
+
+    printf(" rows=%d cols=%d name256='%s' name16='%s' OK\n",
+           rows, cols, r256.name, r16.name);
+}
+
+// ---------------------------------------------------------------------------
+// 9. Terminal info — values may be empty before loop, but must not be NULL
 // ---------------------------------------------------------------------------
 static void test_terminal_info(void) {
     printf("test_terminal_info...");
@@ -320,6 +362,7 @@ int main(void) {
     test_terminal_color_support();
     test_terminal_quirks();
     test_terminal_fallback_size();
+    test_color_info();
     test_terminal_info();
     test_selection_api();
     test_mouse_capture();

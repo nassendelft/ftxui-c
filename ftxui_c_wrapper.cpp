@@ -2102,6 +2102,22 @@ void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
 #include <ftxui/screen/color_info.hpp>
 #include <algorithm>
 
+static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
+    ftxui_color_info_t r;
+    r.index_256  = info.index_256;
+    r.index_16   = info.index_16;
+    r.name       = info.name;
+    r.red        = info.red;
+    r.green      = info.green;
+    r.blue       = info.blue;
+    r.hue        = info.hue;
+    r.saturation = info.saturation;
+    r.value      = info.value;
+    return r;
+}
+
+static const ftxui_color_info_t k_padding_entry = {-1, 0, "", 0, 0, 0, 0, 0, 0};
+
 ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
     auto info_columns = ftxui::ColorInfoSorted2D();
     int rows = static_cast<int>(info_columns.size());
@@ -2118,11 +2134,9 @@ ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
         for (int c = 0; c < cols; c++) {
             int idx = r * cols + c;
             if (c < static_cast<int>(info_columns[r].size())) {
-                result[idx].index_256 = info_columns[r][c].index_256;
-                result[idx].name = info_columns[r][c].name;
+                result[idx] = to_c_color_info(info_columns[r][c]);
             } else {
-                result[idx].index_256 = -1;
-                result[idx].name = "";
+                result[idx] = k_padding_entry;
             }
         }
     }
@@ -2131,6 +2145,14 @@ ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
 
 void ftxui_color_info_free(ftxui_color_info_t* data) {
     delete[] data;
+}
+
+ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) {
+    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette256)index));
+}
+
+ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) {
+    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette16)index));
 }
 
 // --- Dropdown with custom transform ---

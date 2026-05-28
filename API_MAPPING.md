@@ -132,8 +132,8 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 
 | FTXUI C++ | ftxui-c | Notes |
 |-----------|---------|-------|
-| `GetColorInfo(Palette256)` | Not exposed | |
-| `GetColorInfo(Palette16)` | Not exposed | |
+| `GetColorInfo(Palette256)` | `ftxui_color_info_get_256(index)` | Returns `ftxui_color_info_t` by value |
+| `GetColorInfo(Palette16)` | `ftxui_color_info_get_16(index)` | Returns `ftxui_color_info_t` by value |
 | `ColorInfoSorted2D()` | `ftxui_color_info_sorted_2d(num_rows, max_cols)` | Returns flat `ftxui_color_info_t*`; free with `ftxui_color_info_free` |
 
 ---

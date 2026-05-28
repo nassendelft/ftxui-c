@@ -1819,8 +1819,15 @@ void ftxui_loop_destroy(ftxui_loop_handle_t loop);
 
 // --- ColorInfo ---
 typedef struct {
-    int index_256;
+    int         index_256;   // -1 for padding entries in ftxui_color_info_sorted_2d
+    uint8_t     index_16;
     const char* name;
+    uint8_t     red;
+    uint8_t     green;
+    uint8_t     blue;
+    uint8_t     hue;
+    uint8_t     saturation;
+    uint8_t     value;
 } ftxui_color_info_t;
 
 // Returns a flat row-major array of (num_rows * max_cols) entries.
@@ -1828,6 +1835,11 @@ typedef struct {
 // Caller must call ftxui_color_info_free() on the returned pointer.
 ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols);
 void ftxui_color_info_free(ftxui_color_info_t* data);
+
+// Returns color info for a single Palette256 or Palette16 entry by value.
+// The name pointer is valid for the lifetime of the program.
+ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index);
+ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index);
 
 // --- Dropdown with custom transform ---
 typedef ftxui_element_handle_t (*ftxui_dropdown_transform_callback_t)(
