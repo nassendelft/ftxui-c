@@ -22,6 +22,8 @@ typedef void* ftxui_event_handle_t;
  * @return ftxui_element_handle_t The element to render.
  */
 typedef ftxui_element_handle_t (*ftxui_render_callback_t)(void* userdata);
+typedef void (*ftxui_callback_t)(void* userdata);
+typedef bool (*ftxui_predicate_callback_t)(void* userdata);
 
 // --- Colors ---
 
@@ -1161,6 +1163,7 @@ ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t backgrou
  * @return ftxui_component_handle_t The checkbox component handle.
  */
 ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked);
+ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata);
 
 // --- String handle (for Input component) ---
 typedef void* ftxui_string_handle_t;
@@ -1178,6 +1181,20 @@ void ftxui_string_destroy(ftxui_string_handle_t str);
  */
 ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder);
 ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder);
+
+// Input with full options. NULL pointer fields use FTXUI defaults.
+typedef struct {
+    ftxui_string_handle_t content;
+    const char*           placeholder;
+    bool*                 multiline;
+    bool*                 insert;
+    int*                  cursor_position;
+    ftxui_callback_t      on_change;
+    void*                 on_change_userdata;
+    ftxui_callback_t      on_enter;
+    void*                 on_enter_userdata;
+} ftxui_input_options_t;
+ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts);
 
 /**
  * @brief Creates a toggle component.
@@ -1200,6 +1217,10 @@ ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count,
  * @return ftxui_component_handle_t The slider component handle.
  */
 ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment);
+// Slider with on_change callback. Note: SliderOption does not support a label; use the plain
+// ftxui_component_slider for a labeled slider without a callback.
+ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata);
+ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata);
 
 /**
  * @brief Creates a radiobox component.
@@ -1210,6 +1231,7 @@ ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, i
  * @return ftxui_component_handle_t The radiobox component handle.
  */
 ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected);
+ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata);
 
 /**
  * @brief Creates a vertical container for components.
@@ -1217,13 +1239,15 @@ ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int coun
  * @return ftxui_component_handle_t The container component.
  */
 ftxui_component_handle_t ftxui_component_container_vertical();
+ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector);
 
 /**
  * @brief Creates a horizontal container for components.
- * 
+ *
  * @return ftxui_component_handle_t The container component.
  */
 ftxui_component_handle_t ftxui_component_container_horizontal();
+ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector);
 
 /**
  * @brief Creates a tab container for components.
@@ -1249,6 +1273,7 @@ ftxui_component_handle_t ftxui_component_container_stacked();
  * @return ftxui_component_handle_t The menu component handle.
  */
 ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected);
+ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_userdata, ftxui_callback_t on_enter, void* on_enter_userdata);
 
 /**
  * @brief Creates a menu entry component.
@@ -1327,6 +1352,7 @@ ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_co
  * @return ftxui_component_handle_t The maybe component handle.
  */
 ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show);
+ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata);
 
 /**
  * @brief Creates a modal component.
@@ -1562,6 +1588,8 @@ ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t compon
  * @return ftxui_component_handle_t A new component that tracks hover state.
  */
 ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover);
+ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_callback_t on_leave, void* on_leave_userdata);
+ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata);
 
 // --- Additional Element Creation ---
 
@@ -1624,14 +1652,104 @@ ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_ha
 ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y);
 ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
 
-// --- CatchEvent ---
+// --- Events ---
+
+typedef enum {
+    FTXUI_MOUSE_BUTTON_LEFT        = 0,
+    FTXUI_MOUSE_BUTTON_MIDDLE      = 1,
+    FTXUI_MOUSE_BUTTON_RIGHT       = 2,
+    FTXUI_MOUSE_BUTTON_NONE        = 3,
+    FTXUI_MOUSE_BUTTON_WHEEL_UP    = 4,
+    FTXUI_MOUSE_BUTTON_WHEEL_DOWN  = 5,
+    FTXUI_MOUSE_BUTTON_WHEEL_LEFT  = 6,
+    FTXUI_MOUSE_BUTTON_WHEEL_RIGHT = 7,
+} ftxui_mouse_button_t;
+
+typedef enum {
+    FTXUI_MOUSE_MOTION_RELEASED = 0,
+    FTXUI_MOUSE_MOTION_PRESSED  = 1,
+    FTXUI_MOUSE_MOTION_MOVED    = 2,
+} ftxui_mouse_motion_t;
+
+// Basic event accessors
 const char* ftxui_event_input(ftxui_event_handle_t event);
 const char* ftxui_event_debug_string(ftxui_event_handle_t event);
-bool ftxui_event_is_character(ftxui_event_handle_t event);
+bool        ftxui_event_is_character(ftxui_event_handle_t event);
 const char* ftxui_event_character(ftxui_event_handle_t event);
-bool ftxui_event_is_mouse(ftxui_event_handle_t event);
-int ftxui_event_mouse_x(ftxui_event_handle_t event);
-int ftxui_event_mouse_y(ftxui_event_handle_t event);
+
+// Mouse event accessors (all return 0/false if !is_mouse())
+bool                 ftxui_event_is_mouse(ftxui_event_handle_t event);
+int                  ftxui_event_mouse_x(ftxui_event_handle_t event);
+int                  ftxui_event_mouse_y(ftxui_event_handle_t event);
+ftxui_mouse_button_t ftxui_event_mouse_button(ftxui_event_handle_t event);
+ftxui_mouse_motion_t ftxui_event_mouse_motion(ftxui_event_handle_t event);
+bool                 ftxui_event_mouse_shift(ftxui_event_handle_t event);
+bool                 ftxui_event_mouse_meta(ftxui_event_handle_t event);
+bool                 ftxui_event_mouse_control(ftxui_event_handle_t event);
+
+// Cursor-position and cursor-shape events (return 0 if guard is false)
+bool ftxui_event_is_cursor_position(ftxui_event_handle_t event);
+int  ftxui_event_cursor_x(ftxui_event_handle_t event);
+int  ftxui_event_cursor_y(ftxui_event_handle_t event);
+bool ftxui_event_is_cursor_shape(ftxui_event_handle_t event);
+int  ftxui_event_cursor_shape(ftxui_event_handle_t event);
+
+// Terminal-info events
+bool        ftxui_event_is_terminal_name_version(ftxui_event_handle_t event);
+const char* ftxui_event_terminal_name(ftxui_event_handle_t event);
+int         ftxui_event_terminal_version(ftxui_event_handle_t event);
+bool        ftxui_event_is_terminal_emulator(ftxui_event_handle_t event);
+const char* ftxui_event_terminal_emulator_name(ftxui_event_handle_t event);
+const char* ftxui_event_terminal_emulator_version(ftxui_event_handle_t event);
+bool        ftxui_event_is_terminal_capabilities(ftxui_event_handle_t event);
+// Returns malloc'd int[count]; caller must free(). NULL if not a capabilities event.
+int*        ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count);
+
+// Lifecycle for factory-created (caller-owned) event handles
+void ftxui_event_destroy(ftxui_event_handle_t event);
+bool ftxui_event_equal(ftxui_event_handle_t a, ftxui_event_handle_t b);
+
+// Named-constant factory functions — caller must ftxui_event_destroy the result
+ftxui_event_handle_t ftxui_event_arrow_left(void);
+ftxui_event_handle_t ftxui_event_arrow_right(void);
+ftxui_event_handle_t ftxui_event_arrow_up(void);
+ftxui_event_handle_t ftxui_event_arrow_down(void);
+ftxui_event_handle_t ftxui_event_arrow_left_ctrl(void);
+ftxui_event_handle_t ftxui_event_arrow_right_ctrl(void);
+ftxui_event_handle_t ftxui_event_arrow_up_ctrl(void);
+ftxui_event_handle_t ftxui_event_arrow_down_ctrl(void);
+ftxui_event_handle_t ftxui_event_backspace(void);
+ftxui_event_handle_t ftxui_event_delete(void);
+ftxui_event_handle_t ftxui_event_return(void);
+ftxui_event_handle_t ftxui_event_escape(void);
+ftxui_event_handle_t ftxui_event_tab(void);
+ftxui_event_handle_t ftxui_event_tab_reverse(void);
+ftxui_event_handle_t ftxui_event_insert(void);
+ftxui_event_handle_t ftxui_event_home(void);
+ftxui_event_handle_t ftxui_event_end(void);
+ftxui_event_handle_t ftxui_event_page_up(void);
+ftxui_event_handle_t ftxui_event_page_down(void);
+ftxui_event_handle_t ftxui_event_f1(void);
+ftxui_event_handle_t ftxui_event_f2(void);
+ftxui_event_handle_t ftxui_event_f3(void);
+ftxui_event_handle_t ftxui_event_f4(void);
+ftxui_event_handle_t ftxui_event_f5(void);
+ftxui_event_handle_t ftxui_event_f6(void);
+ftxui_event_handle_t ftxui_event_f7(void);
+ftxui_event_handle_t ftxui_event_f8(void);
+ftxui_event_handle_t ftxui_event_f9(void);
+ftxui_event_handle_t ftxui_event_f10(void);
+ftxui_event_handle_t ftxui_event_f11(void);
+ftxui_event_handle_t ftxui_event_f12(void);
+ftxui_event_handle_t ftxui_event_custom(void);
+
+// General event construction — caller must ftxui_event_destroy the result
+ftxui_event_handle_t ftxui_event_character_from_char(char c);
+ftxui_event_handle_t ftxui_event_special(const char* input);
+// c must be a-z or A-Z; returns NULL otherwise
+ftxui_event_handle_t ftxui_event_ctrl_char(char c);
+ftxui_event_handle_t ftxui_event_alt_char(char c);
+
 typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* userdata);
 ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata);
 
@@ -1683,22 +1801,88 @@ ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int c
 // --- RequestAnimationFrame ---
 void ftxui_app_request_animation_frame(ftxui_app_handle_t app);
 
+// --- Cell style ---
+// Represents the style of a terminal cell. Used by selectionStyle and canvas stylizer callbacks.
+// When used as a canvas stylizer: foreground_color and background_color are temporary handles —
+// the callback may read or replace them (setting to NULL leaves the color unchanged), but must NOT
+// call ftxui_color_destroy() on the handles it receives.
+typedef struct {
+    bool blink;
+    bool bold;
+    bool dim;
+    bool italic;
+    bool inverted;
+    bool underlined;
+    bool underlined_double;
+    bool strikethrough;
+    bool automerge;
+    ftxui_color_handle_t foreground_color;
+    ftxui_color_handle_t background_color;
+} ftxui_cell_t;
+
+typedef void (*ftxui_cell_style_callback_t)(ftxui_cell_t* cell, void* userdata);
+
 // --- Canvas ---
 typedef void* ftxui_canvas_handle_t;
 ftxui_canvas_handle_t ftxui_canvas_create(int width, int height);
 void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas);
+int ftxui_canvas_width(ftxui_canvas_handle_t canvas);
+int ftxui_canvas_height(ftxui_canvas_handle_t canvas);
 void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text);
 void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color);
+// Draws text with a stylizer callback. The callback may modify cell style/color fields.
+// The foreground_color and background_color fields in ftxui_cell_t are temporary handles — do NOT free them.
+void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata);
+// Boolean point drawing (braille characters)
+void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value);
+void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
+// Line drawing (color=NULL draws with default color)
 void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
+// Circle drawing — point (braille)
 void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
 void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+// Ellipse drawing — point (braille)
 void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
 void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+// Boolean block drawing (box characters)
+void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value);
+void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
+// Line drawing — block (color=NULL draws with default color)
+void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
+// Circle drawing — block
+void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+// Ellipse drawing — block
 void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
 void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+// Apply a style decorator at a cell position (x must be multiple of 2, y multiple of 4)
+void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata);
 // Creates an element from the canvas. Caller keeps ownership of the canvas handle.
 ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas);
 
@@ -1847,6 +2031,7 @@ typedef void* ftxui_loop_handle_t;
 ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component);
 bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop);
 void ftxui_loop_run_once(ftxui_loop_handle_t loop);
+void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop);
 void ftxui_loop_destroy(ftxui_loop_handle_t loop);
 
 // --- ColorInfo ---
@@ -1888,21 +2073,7 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
     ftxui_button_transform_t entry_transform, void* entry_transform_userdata
 );
 
-// --- Cell style for selectionStyle ---
-typedef struct {
-    bool blink;
-    bool bold;
-    bool dim;
-    bool italic;
-    bool inverted;
-    bool underlined;
-    bool underlined_double;
-    bool strikethrough;
-    bool automerge;
-} ftxui_cell_t;
-
-typedef void (*ftxui_cell_style_callback_t)(ftxui_cell_t* cell, void* userdata);
-
+// --- Selection style ---
 ftxui_element_handle_t ftxui_element_selection_style(
     ftxui_element_handle_t element,
     ftxui_cell_style_callback_t callback,

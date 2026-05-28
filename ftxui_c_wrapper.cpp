@@ -1165,6 +1165,16 @@ ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* check
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::CheckboxOption opt = ftxui::CheckboxOption::Simple();
+    opt.label = label ? label : "";
+    opt.checked = checked;
+    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
+    wrapper->component = ftxui::Checkbox(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 // --- String handle ---
 struct FTXUIStringWrapper { std::string value; };
 
@@ -1202,6 +1212,30 @@ ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t co
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts) {
+    auto* str_wrapper = static_cast<FTXUIStringWrapper*>(opts.content);
+    if (!str_wrapper) return nullptr;
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::InputOption opt = ftxui::InputOption::Default();
+    opt.content = &str_wrapper->value;
+    if (opts.placeholder) opt.placeholder = opts.placeholder;
+    if (opts.multiline) opt.multiline = opts.multiline;
+    if (opts.insert) opt.insert = opts.insert;
+    if (opts.cursor_position) opt.cursor_position = opts.cursor_position;
+    if (opts.on_change) {
+        auto cb = opts.on_change;
+        auto ud = opts.on_change_userdata;
+        opt.on_change = [cb, ud] { cb(ud); };
+    }
+    if (opts.on_enter) {
+        auto cb = opts.on_enter;
+        auto ud = opts.on_enter_userdata;
+        opt.on_enter = [cb, ud] { cb(ud); };
+    }
+    wrapper->component = ftxui::Input(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count, int* selected) {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> toggle_entries;
@@ -1218,6 +1252,30 @@ ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, i
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::SliderOption<int> opt;
+    opt.value = value;
+    opt.min = min;
+    opt.max = max;
+    opt.increment = increment;
+    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
+    wrapper->component = ftxui::Slider(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::SliderOption<float> opt;
+    opt.value = value;
+    opt.min = min;
+    opt.max = max;
+    opt.increment = increment;
+    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
+    wrapper->component = ftxui::Slider(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected) {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> radio_entries;
@@ -1228,15 +1286,41 @@ ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int coun
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::RadioboxOption opt = ftxui::RadioboxOption::Simple();
+    std::vector<std::string> radio_entries;
+    for (int i = 0; i < count; ++i) {
+        radio_entries.push_back(entries[i]);
+    }
+    opt.entries = std::move(radio_entries);
+    opt.selected = selected;
+    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
+    wrapper->component = ftxui::Radiobox(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 ftxui_component_handle_t ftxui_component_container_vertical() {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Vertical({});
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Container::Vertical({}, selector);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 ftxui_component_handle_t ftxui_component_container_horizontal() {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Horizontal({});
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Container::Horizontal({}, selector);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -1259,6 +1343,21 @@ ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, i
         menu_entries.push_back(entries[i]);
     }
     wrapper->component = ftxui::Menu(std::move(menu_entries), selected);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_ud, ftxui_callback_t on_enter, void* on_enter_ud) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::MenuOption opt = ftxui::MenuOption::Vertical();
+    std::vector<std::string> menu_entries;
+    for (int i = 0; i < count; ++i) {
+        menu_entries.push_back(entries[i]);
+    }
+    opt.entries = std::move(menu_entries);
+    opt.selected = selected;
+    if (on_change) opt.on_change = [on_change, on_change_ud] { on_change(on_change_ud); };
+    if (on_enter) opt.on_enter = [on_enter, on_enter_ud] { on_enter(on_enter_ud); };
+    wrapper->component = ftxui::Menu(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -1324,6 +1423,16 @@ ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, c
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata) {
+    auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
+    if (!child_wrapper || !predicate) return nullptr;
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Maybe(child_wrapper->component, [predicate, userdata]() -> bool {
+        return predicate(userdata);
+    });
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* modal_wrapper = static_cast<FTXUIComponentWrapper*>(modal);
@@ -1346,6 +1455,29 @@ ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t comp
 
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Hoverable(inner_wrapper->component, hover);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_ud, ftxui_callback_t on_leave, void* on_leave_ud) {
+    auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (!inner_wrapper) return nullptr;
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Hoverable(
+        inner_wrapper->component,
+        [on_enter, on_enter_ud] { if (on_enter) on_enter(on_enter_ud); },
+        [on_leave, on_leave_ud] { if (on_leave) on_leave(on_leave_ud); }
+    );
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata) {
+    auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (!inner_wrapper || !on_change) return nullptr;
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Hoverable(
+        inner_wrapper->component,
+        [on_change, userdata](bool hovered) { on_change(hovered, userdata); }
+    );
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -1549,7 +1681,7 @@ static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
     }
 }
 
-// --- CatchEvent ---
+// --- Events ---
 const char* ftxui_event_input(ftxui_event_handle_t event) {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w ? w->event.input().c_str() : nullptr;
@@ -1577,6 +1709,205 @@ int ftxui_event_mouse_x(ftxui_event_handle_t event) {
 int ftxui_event_mouse_y(ftxui_event_handle_t event) {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_mouse()) ? w->event.mouse().y : 0;
+}
+ftxui_mouse_button_t ftxui_event_mouse_button(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !w->event.is_mouse()) return FTXUI_MOUSE_BUTTON_NONE;
+    return (ftxui_mouse_button_t)w->event.mouse().button;
+}
+ftxui_mouse_motion_t ftxui_event_mouse_motion(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !w->event.is_mouse()) return FTXUI_MOUSE_MOTION_RELEASED;
+    return (ftxui_mouse_motion_t)w->event.mouse().motion;
+}
+bool ftxui_event_mouse_shift(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.is_mouse() && w->event.mouse().shift;
+}
+bool ftxui_event_mouse_meta(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.is_mouse() && w->event.mouse().meta;
+}
+bool ftxui_event_mouse_control(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.is_mouse() && w->event.mouse().control;
+}
+bool ftxui_event_is_cursor_position(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.is_cursor_position();
+}
+int ftxui_event_cursor_x(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return (w && w->event.is_cursor_position()) ? w->event.cursor_x() : 0;
+}
+int ftxui_event_cursor_y(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return (w && w->event.is_cursor_position()) ? w->event.cursor_y() : 0;
+}
+bool ftxui_event_is_cursor_shape(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.is_cursor_shape();
+}
+int ftxui_event_cursor_shape(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return (w && w->event.is_cursor_shape()) ? w->event.cursor_shape() : 0;
+}
+bool ftxui_event_is_terminal_name_version(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.IsTerminalNameVersion();
+}
+const char* ftxui_event_terminal_name(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !w->event.IsTerminalNameVersion()) return "";
+    return w->event.TerminalName().c_str();
+}
+int ftxui_event_terminal_version(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !w->event.IsTerminalNameVersion()) return 0;
+    return w->event.TerminalVersion();
+}
+bool ftxui_event_is_terminal_emulator(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.IsTerminalEmulator();
+}
+const char* ftxui_event_terminal_emulator_name(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !w->event.IsTerminalEmulator()) return "";
+    return w->event.TerminalEmulatorName().c_str();
+}
+const char* ftxui_event_terminal_emulator_version(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !w->event.IsTerminalEmulator()) return "";
+    return w->event.TerminalEmulatorVersion().c_str();
+}
+bool ftxui_event_is_terminal_capabilities(ftxui_event_handle_t event) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    return w && w->event.IsTerminalCapabilities();
+}
+int* ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count) {
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (!w || !count || !w->event.IsTerminalCapabilities()) {
+        if (count) *count = 0;
+        return nullptr;
+    }
+    const auto& caps = w->event.TerminalCapabilities();
+    *count = (int)caps.size();
+    if (caps.empty()) return nullptr;
+    int* result = (int*)std::malloc(caps.size() * sizeof(int));
+    for (size_t i = 0; i < caps.size(); i++) result[i] = caps[i];
+    return result;
+}
+void ftxui_event_destroy(ftxui_event_handle_t event) {
+    delete static_cast<FTXUIEventWrapper*>(event);
+}
+bool ftxui_event_equal(ftxui_event_handle_t a, ftxui_event_handle_t b) {
+    auto* wa = static_cast<FTXUIEventWrapper*>(a);
+    auto* wb = static_cast<FTXUIEventWrapper*>(b);
+    if (!wa || !wb) return false;
+    return wa->event == wb->event;
+}
+ftxui_event_handle_t ftxui_event_arrow_left(void)       { return new FTXUIEventWrapper(ftxui::Event::ArrowLeft); }
+ftxui_event_handle_t ftxui_event_arrow_right(void)      { return new FTXUIEventWrapper(ftxui::Event::ArrowRight); }
+ftxui_event_handle_t ftxui_event_arrow_up(void)         { return new FTXUIEventWrapper(ftxui::Event::ArrowUp); }
+ftxui_event_handle_t ftxui_event_arrow_down(void)       { return new FTXUIEventWrapper(ftxui::Event::ArrowDown); }
+ftxui_event_handle_t ftxui_event_arrow_left_ctrl(void)  { return new FTXUIEventWrapper(ftxui::Event::ArrowLeftCtrl); }
+ftxui_event_handle_t ftxui_event_arrow_right_ctrl(void) { return new FTXUIEventWrapper(ftxui::Event::ArrowRightCtrl); }
+ftxui_event_handle_t ftxui_event_arrow_up_ctrl(void)    { return new FTXUIEventWrapper(ftxui::Event::ArrowUpCtrl); }
+ftxui_event_handle_t ftxui_event_arrow_down_ctrl(void)  { return new FTXUIEventWrapper(ftxui::Event::ArrowDownCtrl); }
+ftxui_event_handle_t ftxui_event_backspace(void)        { return new FTXUIEventWrapper(ftxui::Event::Backspace); }
+ftxui_event_handle_t ftxui_event_delete(void)           { return new FTXUIEventWrapper(ftxui::Event::Delete); }
+ftxui_event_handle_t ftxui_event_return(void)           { return new FTXUIEventWrapper(ftxui::Event::Return); }
+ftxui_event_handle_t ftxui_event_escape(void)           { return new FTXUIEventWrapper(ftxui::Event::Escape); }
+ftxui_event_handle_t ftxui_event_tab(void)              { return new FTXUIEventWrapper(ftxui::Event::Tab); }
+ftxui_event_handle_t ftxui_event_tab_reverse(void)      { return new FTXUIEventWrapper(ftxui::Event::TabReverse); }
+ftxui_event_handle_t ftxui_event_insert(void)           { return new FTXUIEventWrapper(ftxui::Event::Insert); }
+ftxui_event_handle_t ftxui_event_home(void)             { return new FTXUIEventWrapper(ftxui::Event::Home); }
+ftxui_event_handle_t ftxui_event_end(void)              { return new FTXUIEventWrapper(ftxui::Event::End); }
+ftxui_event_handle_t ftxui_event_page_up(void)          { return new FTXUIEventWrapper(ftxui::Event::PageUp); }
+ftxui_event_handle_t ftxui_event_page_down(void)        { return new FTXUIEventWrapper(ftxui::Event::PageDown); }
+ftxui_event_handle_t ftxui_event_f1(void)               { return new FTXUIEventWrapper(ftxui::Event::F1); }
+ftxui_event_handle_t ftxui_event_f2(void)               { return new FTXUIEventWrapper(ftxui::Event::F2); }
+ftxui_event_handle_t ftxui_event_f3(void)               { return new FTXUIEventWrapper(ftxui::Event::F3); }
+ftxui_event_handle_t ftxui_event_f4(void)               { return new FTXUIEventWrapper(ftxui::Event::F4); }
+ftxui_event_handle_t ftxui_event_f5(void)               { return new FTXUIEventWrapper(ftxui::Event::F5); }
+ftxui_event_handle_t ftxui_event_f6(void)               { return new FTXUIEventWrapper(ftxui::Event::F6); }
+ftxui_event_handle_t ftxui_event_f7(void)               { return new FTXUIEventWrapper(ftxui::Event::F7); }
+ftxui_event_handle_t ftxui_event_f8(void)               { return new FTXUIEventWrapper(ftxui::Event::F8); }
+ftxui_event_handle_t ftxui_event_f9(void)               { return new FTXUIEventWrapper(ftxui::Event::F9); }
+ftxui_event_handle_t ftxui_event_f10(void)              { return new FTXUIEventWrapper(ftxui::Event::F10); }
+ftxui_event_handle_t ftxui_event_f11(void)              { return new FTXUIEventWrapper(ftxui::Event::F11); }
+ftxui_event_handle_t ftxui_event_f12(void)              { return new FTXUIEventWrapper(ftxui::Event::F12); }
+ftxui_event_handle_t ftxui_event_custom(void)           { return new FTXUIEventWrapper(ftxui::Event::Custom); }
+ftxui_event_handle_t ftxui_event_character_from_char(char c) {
+    return new FTXUIEventWrapper(ftxui::Event::Character(c));
+}
+ftxui_event_handle_t ftxui_event_special(const char* input) {
+    if (!input) return nullptr;
+    return new FTXUIEventWrapper(ftxui::Event::Special(input));
+}
+ftxui_event_handle_t ftxui_event_ctrl_char(char c) {
+    if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+    switch (c) {
+        case 'a': return new FTXUIEventWrapper(ftxui::Event::CtrlA);
+        case 'b': return new FTXUIEventWrapper(ftxui::Event::CtrlB);
+        case 'c': return new FTXUIEventWrapper(ftxui::Event::CtrlC);
+        case 'd': return new FTXUIEventWrapper(ftxui::Event::CtrlD);
+        case 'e': return new FTXUIEventWrapper(ftxui::Event::CtrlE);
+        case 'f': return new FTXUIEventWrapper(ftxui::Event::CtrlF);
+        case 'g': return new FTXUIEventWrapper(ftxui::Event::CtrlG);
+        case 'h': return new FTXUIEventWrapper(ftxui::Event::CtrlH);
+        case 'i': return new FTXUIEventWrapper(ftxui::Event::CtrlI);
+        case 'j': return new FTXUIEventWrapper(ftxui::Event::CtrlJ);
+        case 'k': return new FTXUIEventWrapper(ftxui::Event::CtrlK);
+        case 'l': return new FTXUIEventWrapper(ftxui::Event::CtrlL);
+        case 'm': return new FTXUIEventWrapper(ftxui::Event::CtrlM);
+        case 'n': return new FTXUIEventWrapper(ftxui::Event::CtrlN);
+        case 'o': return new FTXUIEventWrapper(ftxui::Event::CtrlO);
+        case 'p': return new FTXUIEventWrapper(ftxui::Event::CtrlP);
+        case 'q': return new FTXUIEventWrapper(ftxui::Event::CtrlQ);
+        case 'r': return new FTXUIEventWrapper(ftxui::Event::CtrlR);
+        case 's': return new FTXUIEventWrapper(ftxui::Event::CtrlS);
+        case 't': return new FTXUIEventWrapper(ftxui::Event::CtrlT);
+        case 'u': return new FTXUIEventWrapper(ftxui::Event::CtrlU);
+        case 'v': return new FTXUIEventWrapper(ftxui::Event::CtrlV);
+        case 'w': return new FTXUIEventWrapper(ftxui::Event::CtrlW);
+        case 'x': return new FTXUIEventWrapper(ftxui::Event::CtrlX);
+        case 'y': return new FTXUIEventWrapper(ftxui::Event::CtrlY);
+        case 'z': return new FTXUIEventWrapper(ftxui::Event::CtrlZ);
+        default:  return nullptr;
+    }
+}
+ftxui_event_handle_t ftxui_event_alt_char(char c) {
+    if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+    switch (c) {
+        case 'a': return new FTXUIEventWrapper(ftxui::Event::AltA);
+        case 'b': return new FTXUIEventWrapper(ftxui::Event::AltB);
+        case 'c': return new FTXUIEventWrapper(ftxui::Event::AltC);
+        case 'd': return new FTXUIEventWrapper(ftxui::Event::AltD);
+        case 'e': return new FTXUIEventWrapper(ftxui::Event::AltE);
+        case 'f': return new FTXUIEventWrapper(ftxui::Event::AltF);
+        case 'g': return new FTXUIEventWrapper(ftxui::Event::AltG);
+        case 'h': return new FTXUIEventWrapper(ftxui::Event::AltH);
+        case 'i': return new FTXUIEventWrapper(ftxui::Event::AltI);
+        case 'j': return new FTXUIEventWrapper(ftxui::Event::AltJ);
+        case 'k': return new FTXUIEventWrapper(ftxui::Event::AltK);
+        case 'l': return new FTXUIEventWrapper(ftxui::Event::AltL);
+        case 'm': return new FTXUIEventWrapper(ftxui::Event::AltM);
+        case 'n': return new FTXUIEventWrapper(ftxui::Event::AltN);
+        case 'o': return new FTXUIEventWrapper(ftxui::Event::AltO);
+        case 'p': return new FTXUIEventWrapper(ftxui::Event::AltP);
+        case 'q': return new FTXUIEventWrapper(ftxui::Event::AltQ);
+        case 'r': return new FTXUIEventWrapper(ftxui::Event::AltR);
+        case 's': return new FTXUIEventWrapper(ftxui::Event::AltS);
+        case 't': return new FTXUIEventWrapper(ftxui::Event::AltT);
+        case 'u': return new FTXUIEventWrapper(ftxui::Event::AltU);
+        case 'v': return new FTXUIEventWrapper(ftxui::Event::AltV);
+        case 'w': return new FTXUIEventWrapper(ftxui::Event::AltW);
+        case 'x': return new FTXUIEventWrapper(ftxui::Event::AltX);
+        case 'y': return new FTXUIEventWrapper(ftxui::Event::AltY);
+        case 'z': return new FTXUIEventWrapper(ftxui::Event::AltZ);
+        default:  return nullptr;
+    }
 }
 ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata) {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
@@ -1749,6 +2080,53 @@ void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas) {
     delete static_cast<ftxui::Canvas*>(canvas);
 }
 
+int ftxui_canvas_width(ftxui_canvas_handle_t canvas) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    return c ? c->width() : 0;
+}
+
+int ftxui_canvas_height(ftxui_canvas_handle_t canvas) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    return c ? c->height() : 0;
+}
+
+// Helper: build a Canvas::Stylizer from a C callback.
+// The callback receives temporary color handles it must NOT free.
+static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud) {
+    return [cb, ud](ftxui::Cell& cell) {
+        ftxui_cell_t c;
+        c.blink = cell.blink;
+        c.bold = cell.bold;
+        c.dim = cell.dim;
+        c.italic = cell.italic;
+        c.inverted = cell.inverted;
+        c.underlined = cell.underlined;
+        c.underlined_double = cell.underlined_double;
+        c.strikethrough = cell.strikethrough;
+        c.automerge = cell.automerge;
+        c.foreground_color = new ftxui::Color(cell.foreground_color);
+        c.background_color = new ftxui::Color(cell.background_color);
+        cb(&c, ud);
+        cell.blink = c.blink;
+        cell.bold = c.bold;
+        cell.dim = c.dim;
+        cell.italic = c.italic;
+        cell.inverted = c.inverted;
+        cell.underlined = c.underlined;
+        cell.underlined_double = c.underlined_double;
+        cell.strikethrough = c.strikethrough;
+        cell.automerge = c.automerge;
+        if (c.foreground_color) {
+            cell.foreground_color = *static_cast<ftxui::Color*>(c.foreground_color);
+            delete static_cast<ftxui::Color*>(c.foreground_color);
+        }
+        if (c.background_color) {
+            cell.background_color = *static_cast<ftxui::Color*>(c.background_color);
+            delete static_cast<ftxui::Color*>(c.background_color);
+        }
+    };
+}
+
 void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && text) c->DrawText(x, y, text);
@@ -1760,12 +2138,148 @@ void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, co
     if (c && text && col) c->DrawText(x, y, text, *col);
 }
 
+void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && text && cb) c->DrawText(x, y, text, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointOn(x, y);
+}
+
+void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointOff(x, y);
+}
+
+void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointToggle(x, y);
+}
+
+void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPoint(x, y, value);
+}
+
+void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPoint(x, y, value, *col);
+}
+
+void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPoint(x, y, value, make_canvas_stylizer(cb, userdata));
+}
+
 void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (!c) return;
     if (col) c->DrawPointLine(x1, y1, x2, y2, *col);
     else c->DrawPointLine(x1, y1, x2, y2);
+}
+
+void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointCircle(x, y, radius);
+}
+
+void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointCircle(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointCircleFilled(x, y, radius);
+}
+
+void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointCircleFilled(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointEllipse(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointEllipse(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointEllipseFilled(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointEllipseFilled(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockOn(x, y);
+}
+
+void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockOff(x, y);
+}
+
+void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockToggle(x, y);
+}
+
+void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlock(x, y, value);
+}
+
+void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlock(x, y, value, *col);
+}
+
+void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlock(x, y, value, make_canvas_stylizer(cb, userdata));
 }
 
 void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
@@ -1776,14 +2290,9 @@ void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, 
     else c->DrawBlockLine(x1, y1, x2, y2);
 }
 
-void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointCircle(x, y, radius);
-}
-
-void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointCircleFilled(x, y, radius);
+    if (c && cb) c->DrawBlockLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
 }
 
 void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
@@ -1791,19 +2300,31 @@ void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, 
     if (c) c->DrawBlockCircle(x, y, radius);
 }
 
+void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockCircle(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
 void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockCircleFilled(x, y, radius);
 }
 
-void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointEllipse(x, y, rx, ry);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockCircleFilled(x, y, radius, *col);
 }
 
-void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointEllipseFilled(x, y, rx, ry);
+    if (c && cb) c->DrawBlockCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
 }
 
 void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
@@ -1811,9 +2332,36 @@ void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y,
     if (c) c->DrawBlockEllipse(x, y, rx, ry);
 }
 
+void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockEllipse(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
 void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockEllipseFilled(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockEllipseFilled(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->Style(x, y, make_canvas_stylizer(cb, userdata));
 }
 
 ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) {
@@ -2217,6 +2765,11 @@ void ftxui_loop_run_once(ftxui_loop_handle_t loop) {
     if (lw) lw->loop.RunOnce();
 }
 
+void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop) {
+    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
+    if (lw) lw->loop.RunOnceBlocking();
+}
+
 void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
     delete static_cast<FTXUILoopWrapper*>(loop);
 }
@@ -2344,28 +2897,7 @@ ftxui_element_handle_t ftxui_element_selection_style(
 ) {
     if (!callback) return element;
     return apply_element_modifier(element, [callback, userdata](ftxui::Element el) {
-        return el | ftxui::selectionStyle([callback, userdata](ftxui::Cell& cell) {
-            ftxui_cell_t c;
-            c.blink = cell.blink;
-            c.bold = cell.bold;
-            c.dim = cell.dim;
-            c.italic = cell.italic;
-            c.inverted = cell.inverted;
-            c.underlined = cell.underlined;
-            c.underlined_double = cell.underlined_double;
-            c.strikethrough = cell.strikethrough;
-            c.automerge = cell.automerge;
-            callback(&c, userdata);
-            cell.blink = c.blink;
-            cell.bold = c.bold;
-            cell.dim = c.dim;
-            cell.italic = c.italic;
-            cell.inverted = c.inverted;
-            cell.underlined = c.underlined;
-            cell.underlined_double = c.underlined_double;
-            cell.strikethrough = c.strikethrough;
-            cell.automerge = c.automerge;
-        });
+        return el | ftxui::selectionStyle(make_canvas_stylizer(callback, userdata));
     });
 }
 

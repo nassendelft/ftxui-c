@@ -94,7 +94,7 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | `Loop(App*, Component)` | `ftxui_loop_create(app, component)` | |
 | `loop.HasQuitted()` | `ftxui_loop_has_quitted(loop)` | |
 | `loop.RunOnce()` | `ftxui_loop_run_once(loop)` | |
-| `loop.RunOnceBlocking()` | Not exposed | |
+| `loop.RunOnceBlocking()` | `ftxui_loop_run_once_blocking(loop)` | |
 | `loop.Run()` | Not exposed | Use `ftxui_app_loop` instead |
 | *(destructor)* | `ftxui_loop_destroy(loop)` | |
 
@@ -312,57 +312,57 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | FTXUI C++ | ftxui-c | Notes |
 |-----------|---------|-------|
 | `Canvas(width, height)` | `ftxui_canvas_create(width, height)` | |
-| `canvas.width()` | Not exposed | |
-| `canvas.height()` | Not exposed | |
-| `canvas.GetCell(x, y)` | Not exposed | |
+| `canvas.width()` | `ftxui_canvas_width(canvas)` | |
+| `canvas.height()` | `ftxui_canvas_height(canvas)` | |
+| `canvas.GetCell(x, y)` | Not exposed | Requires `Cell` handle type |
 | `canvas.DrawText(x, y, text)` | `ftxui_canvas_draw_text(canvas, x, y, text)` | |
 | `canvas.DrawText(x, y, text, Color)` | `ftxui_canvas_draw_text_color(canvas, x, y, text, color)` | |
-| `canvas.DrawText(x, y, text, Stylizer)` | Not exposed | |
-| `canvas.DrawPointOn(x, y)` | Not exposed | |
-| `canvas.DrawPointOff(x, y)` | Not exposed | |
-| `canvas.DrawPointToggle(x, y)` | Not exposed | |
-| `canvas.DrawPoint(x, y, bool)` | Not exposed | |
-| `canvas.DrawPoint(x, y, bool, Color)` | Not exposed | |
-| `canvas.DrawPoint(x, y, bool, Stylizer)` | Not exposed | |
-| `canvas.DrawPointLine(x1, y1, x2, y2)` | Not exposed | Color-less overload |
+| `canvas.DrawText(x, y, text, Stylizer)` | `ftxui_canvas_draw_text_stylizer(canvas, x, y, text, cb, ud)` | |
+| `canvas.DrawPointOn(x, y)` | `ftxui_canvas_draw_point_on(canvas, x, y)` | |
+| `canvas.DrawPointOff(x, y)` | `ftxui_canvas_draw_point_off(canvas, x, y)` | |
+| `canvas.DrawPointToggle(x, y)` | `ftxui_canvas_draw_point_toggle(canvas, x, y)` | |
+| `canvas.DrawPoint(x, y, bool)` | `ftxui_canvas_draw_point(canvas, x, y, value)` | |
+| `canvas.DrawPoint(x, y, bool, Color)` | `ftxui_canvas_draw_point_color(canvas, x, y, value, color)` | |
+| `canvas.DrawPoint(x, y, bool, Stylizer)` | `ftxui_canvas_draw_point_stylizer(canvas, x, y, value, cb, ud)` | |
+| `canvas.DrawPointLine(x1, y1, x2, y2)` | `ftxui_canvas_draw_point_line(canvas, x1, y1, x2, y2, NULL)` | Pass NULL color for default |
 | `canvas.DrawPointLine(x1, y1, x2, y2, Color)` | `ftxui_canvas_draw_point_line(canvas, x1, y1, x2, y2, color)` | |
-| `canvas.DrawPointLine(x1, y1, x2, y2, Stylizer)` | Not exposed | |
+| `canvas.DrawPointLine(x1, y1, x2, y2, Stylizer)` | `ftxui_canvas_draw_point_line_stylizer(canvas, x1, y1, x2, y2, cb, ud)` | |
 | `canvas.DrawPointCircle(x, y, r)` | `ftxui_canvas_draw_point_circle(canvas, x, y, r)` | |
-| `canvas.DrawPointCircle(x, y, r, Color)` | Not exposed | |
-| `canvas.DrawPointCircle(x, y, r, Stylizer)` | Not exposed | |
+| `canvas.DrawPointCircle(x, y, r, Color)` | `ftxui_canvas_draw_point_circle_color(canvas, x, y, r, color)` | |
+| `canvas.DrawPointCircle(x, y, r, Stylizer)` | `ftxui_canvas_draw_point_circle_stylizer(canvas, x, y, r, cb, ud)` | |
 | `canvas.DrawPointCircleFilled(x, y, r)` | `ftxui_canvas_draw_point_circle_filled(canvas, x, y, r)` | |
-| `canvas.DrawPointCircleFilled(x, y, r, Color)` | Not exposed | |
-| `canvas.DrawPointCircleFilled(x, y, r, Stylizer)` | Not exposed | |
+| `canvas.DrawPointCircleFilled(x, y, r, Color)` | `ftxui_canvas_draw_point_circle_filled_color(canvas, x, y, r, color)` | |
+| `canvas.DrawPointCircleFilled(x, y, r, Stylizer)` | `ftxui_canvas_draw_point_circle_filled_stylizer(canvas, x, y, r, cb, ud)` | |
 | `canvas.DrawPointEllipse(x, y, r1, r2)` | `ftxui_canvas_draw_point_ellipse(canvas, x, y, rx, ry)` | |
-| `canvas.DrawPointEllipse(x, y, r1, r2, Color)` | Not exposed | |
-| `canvas.DrawPointEllipse(x, y, r1, r2, Stylizer)` | Not exposed | |
+| `canvas.DrawPointEllipse(x, y, r1, r2, Color)` | `ftxui_canvas_draw_point_ellipse_color(canvas, x, y, rx, ry, color)` | |
+| `canvas.DrawPointEllipse(x, y, r1, r2, Stylizer)` | `ftxui_canvas_draw_point_ellipse_stylizer(canvas, x, y, rx, ry, cb, ud)` | |
 | `canvas.DrawPointEllipseFilled(x, y, r1, r2)` | `ftxui_canvas_draw_point_ellipse_filled(canvas, x, y, rx, ry)` | |
-| `canvas.DrawPointEllipseFilled(x, y, r1, r2, Color)` | Not exposed | |
-| `canvas.DrawPointEllipseFilled(x, y, r1, r2, Stylizer)` | Not exposed | |
-| `canvas.DrawBlockOn(x, y)` | Not exposed | |
-| `canvas.DrawBlockOff(x, y)` | Not exposed | |
-| `canvas.DrawBlockToggle(x, y)` | Not exposed | |
-| `canvas.DrawBlock(x, y, bool)` | Not exposed | |
-| `canvas.DrawBlock(x, y, bool, Color)` | Not exposed | |
-| `canvas.DrawBlock(x, y, bool, Stylizer)` | Not exposed | |
-| `canvas.DrawBlockLine(x1, y1, x2, y2)` | Not exposed | Color-less overload |
+| `canvas.DrawPointEllipseFilled(x, y, r1, r2, Color)` | `ftxui_canvas_draw_point_ellipse_filled_color(canvas, x, y, rx, ry, color)` | |
+| `canvas.DrawPointEllipseFilled(x, y, r1, r2, Stylizer)` | `ftxui_canvas_draw_point_ellipse_filled_stylizer(canvas, x, y, rx, ry, cb, ud)` | |
+| `canvas.DrawBlockOn(x, y)` | `ftxui_canvas_draw_block_on(canvas, x, y)` | |
+| `canvas.DrawBlockOff(x, y)` | `ftxui_canvas_draw_block_off(canvas, x, y)` | |
+| `canvas.DrawBlockToggle(x, y)` | `ftxui_canvas_draw_block_toggle(canvas, x, y)` | |
+| `canvas.DrawBlock(x, y, bool)` | `ftxui_canvas_draw_block(canvas, x, y, value)` | |
+| `canvas.DrawBlock(x, y, bool, Color)` | `ftxui_canvas_draw_block_color(canvas, x, y, value, color)` | |
+| `canvas.DrawBlock(x, y, bool, Stylizer)` | `ftxui_canvas_draw_block_stylizer(canvas, x, y, value, cb, ud)` | |
+| `canvas.DrawBlockLine(x1, y1, x2, y2)` | `ftxui_canvas_draw_block_line(canvas, x1, y1, x2, y2, NULL)` | Pass NULL color for default |
 | `canvas.DrawBlockLine(x1, y1, x2, y2, Color)` | `ftxui_canvas_draw_block_line(canvas, x1, y1, x2, y2, color)` | |
-| `canvas.DrawBlockLine(x1, y1, x2, y2, Stylizer)` | Not exposed | |
+| `canvas.DrawBlockLine(x1, y1, x2, y2, Stylizer)` | `ftxui_canvas_draw_block_line_stylizer(canvas, x1, y1, x2, y2, cb, ud)` | |
 | `canvas.DrawBlockCircle(x, y, r)` | `ftxui_canvas_draw_block_circle(canvas, x, y, r)` | |
-| `canvas.DrawBlockCircle(x, y, r, Color)` | Not exposed | |
-| `canvas.DrawBlockCircle(x, y, r, Stylizer)` | Not exposed | |
+| `canvas.DrawBlockCircle(x, y, r, Color)` | `ftxui_canvas_draw_block_circle_color(canvas, x, y, r, color)` | |
+| `canvas.DrawBlockCircle(x, y, r, Stylizer)` | `ftxui_canvas_draw_block_circle_stylizer(canvas, x, y, r, cb, ud)` | |
 | `canvas.DrawBlockCircleFilled(x, y, r)` | `ftxui_canvas_draw_block_circle_filled(canvas, x, y, r)` | |
-| `canvas.DrawBlockCircleFilled(x, y, r, Color)` | Not exposed | |
-| `canvas.DrawBlockCircleFilled(x, y, r, Stylizer)` | Not exposed | |
+| `canvas.DrawBlockCircleFilled(x, y, r, Color)` | `ftxui_canvas_draw_block_circle_filled_color(canvas, x, y, r, color)` | |
+| `canvas.DrawBlockCircleFilled(x, y, r, Stylizer)` | `ftxui_canvas_draw_block_circle_filled_stylizer(canvas, x, y, r, cb, ud)` | |
 | `canvas.DrawBlockEllipse(x, y, r1, r2)` | `ftxui_canvas_draw_block_ellipse(canvas, x, y, rx, ry)` | |
-| `canvas.DrawBlockEllipse(x, y, r1, r2, Color)` | Not exposed | |
-| `canvas.DrawBlockEllipse(x, y, r1, r2, Stylizer)` | Not exposed | |
+| `canvas.DrawBlockEllipse(x, y, r1, r2, Color)` | `ftxui_canvas_draw_block_ellipse_color(canvas, x, y, rx, ry, color)` | |
+| `canvas.DrawBlockEllipse(x, y, r1, r2, Stylizer)` | `ftxui_canvas_draw_block_ellipse_stylizer(canvas, x, y, rx, ry, cb, ud)` | |
 | `canvas.DrawBlockEllipseFilled(x, y, r1, r2)` | `ftxui_canvas_draw_block_ellipse_filled(canvas, x, y, rx, ry)` | |
-| `canvas.DrawBlockEllipseFilled(x, y, r1, r2, Color)` | Not exposed | |
-| `canvas.DrawBlockEllipseFilled(x, y, r1, r2, Stylizer)` | Not exposed | |
-| `canvas.DrawCell(x, y, Cell)` | Not exposed | |
-| `canvas.DrawSurface(x, y, Surface)` | Not exposed | |
-| `canvas.Style(x, y, Stylizer)` | Not exposed | |
+| `canvas.DrawBlockEllipseFilled(x, y, r1, r2, Color)` | `ftxui_canvas_draw_block_ellipse_filled_color(canvas, x, y, rx, ry, color)` | |
+| `canvas.DrawBlockEllipseFilled(x, y, r1, r2, Stylizer)` | `ftxui_canvas_draw_block_ellipse_filled_stylizer(canvas, x, y, rx, ry, cb, ud)` | |
+| `canvas.DrawCell(x, y, Cell)` | Not exposed | `Cell::character` is `std::string`; requires `Cell` handle type |
+| `canvas.DrawSurface(x, y, Surface)` | Not exposed | `Surface` requires its own handle type |
+| `canvas.Style(x, y, Stylizer)` | `ftxui_canvas_style(canvas, x, y, cb, ud)` | |
 | *(destructor)* | `ftxui_canvas_destroy(canvas)` | |
 
 ---
@@ -432,23 +432,23 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | `ButtonOption::Border()` | `ftxui_button_option_border()` | |
 | `ButtonOption::Animated(...)` | `ftxui_button_option_animated(bg, fg, bg_active, fg_active)` | |
 | `Checkbox(label, bool*)` | `ftxui_component_checkbox(label, checked)` | |
-| `Checkbox(label, bool*, on_change)` | Not exposed | `on_change` callback not available |
+| `Checkbox(label, bool*, on_change)` | `ftxui_component_checkbox_with_change(label, checked, on_change, ud)` | |
 | `Input(content, placeholder)` | `ftxui_component_input(content, placeholder)` | Uses `ftxui_string_handle_t` for content |
 | `Input(content, placeholder, {password:true})` | `ftxui_component_input_password(content, placeholder)` | |
-| `Input` option: `on_change` | Not exposed | |
-| `Input` option: `on_enter` | Not exposed | |
-| `Input` option: `multiline` | Not exposed | Always true |
-| `Input` option: `insert` | Not exposed | |
-| `Input` option: `cursor_position` | Not exposed | |
+| `Input` option: `on_change` | `ftxui_component_input_with_options(opts)` | Via `ftxui_input_options_t.on_change` |
+| `Input` option: `on_enter` | `ftxui_component_input_with_options(opts)` | Via `ftxui_input_options_t.on_enter` |
+| `Input` option: `multiline` | `ftxui_component_input_with_options(opts)` | Via `ftxui_input_options_t.multiline` |
+| `Input` option: `insert` | `ftxui_component_input_with_options(opts)` | Via `ftxui_input_options_t.insert` |
+| `Input` option: `cursor_position` | `ftxui_component_input_with_options(opts)` | Via `ftxui_input_options_t.cursor_position` |
 | `Toggle(entries, selected)` | `ftxui_component_toggle(entries, count, selected)` | |
 | `Radiobox(entries, selected)` | `ftxui_component_radiobox(entries, count, selected)` | |
-| `Radiobox` option: `on_change` | Not exposed | |
+| `Radiobox` option: `on_change` | `ftxui_component_radiobox_with_change(entries, count, selected, on_change, ud)` | |
 | `Menu(entries, selected)` | `ftxui_component_menu(entries, count, selected)` | |
 | `Menu(entries, selected, Horizontal())` | `ftxui_component_menu_horizontal(entries, count, selected)` | |
 | `Menu(entries, selected, HorizontalAnimated())` | `ftxui_component_menu_horizontal_animated(entries, count, selected)` | |
 | `Menu(entries, selected, Toggle())` | `ftxui_component_menu_toggle(entries, count, selected)` | |
-| `Menu` option: `on_change` | Not exposed | |
-| `Menu` option: `on_enter` | Not exposed | |
+| `Menu` option: `on_change` | `ftxui_component_menu_with_callbacks(entries, count, sel, on_change, ud, on_enter, ud)` | |
+| `Menu` option: `on_enter` | `ftxui_component_menu_with_callbacks(entries, count, sel, on_change, ud, on_enter, ud)` | |
 | `MenuEntry(label)` | `ftxui_component_menu_entry(label)` | |
 | `MenuEntry(label, {animated_colors})` | `ftxui_component_menu_entry_animated(label, colors)` | |
 | `Dropdown(entries, selected)` | `ftxui_component_dropdown(entries, count, selected)` | |
@@ -457,7 +457,7 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | `Slider(label, float*, min, max, inc)` | `ftxui_component_slider_float(label, value, min, max, increment)` | |
 | `Slider(SliderOption<int>)` | `ftxui_component_slider_int_direction(value, min, max, inc, direction)` | No `on_change` |
 | `Slider(SliderOption<float>)` | `ftxui_component_slider_float_direction(value, min, max, inc, direction, color_active, color_inactive)` | No `on_change` |
-| `Slider` option: `on_change` | Not exposed | |
+| `Slider` option: `on_change` | `ftxui_component_slider_int_with_change(value, min, max, inc, cb, ud)` or `_float_with_change` | Label-less variant; use `ftxui_component_slider` for labeled slider |
 | `component.Render()` | `ftxui_component_render(component)` | Returns `ftxui_element_handle_t` |
 
 ---
@@ -467,9 +467,9 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | FTXUI C++ | ftxui-c | Notes |
 |-----------|---------|-------|
 | `Container::Vertical(children)` | `ftxui_component_container_vertical()` | Children added via `ftxui_container_add` |
-| `Container::Vertical(children, selector)` | Not exposed | `selector` int* not available |
+| `Container::Vertical(children, selector)` | `ftxui_component_container_vertical_focused(selector)` | |
 | `Container::Horizontal(children)` | `ftxui_component_container_horizontal()` | |
-| `Container::Horizontal(children, selector)` | Not exposed | |
+| `Container::Horizontal(children, selector)` | `ftxui_component_container_horizontal_focused(selector)` | |
 | `Container::Tab(children, selector)` | `ftxui_component_container_tab(selected)` | |
 | `Container::Stacked(children)` | `ftxui_component_container_stacked()` | |
 | `component.Add(child)` | `ftxui_container_add(container, child)` | |
@@ -482,11 +482,11 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 |-----------|---------|-------|
 | `Collapsible(label, child, show)` | `ftxui_component_collapsible(label, child, show)` | |
 | `Maybe(child, bool*)` | `ftxui_component_maybe(child, show)` | |
-| `Maybe(child, fn)` | Not exposed | Function overload not available |
+| `Maybe(child, fn)` | `ftxui_component_maybe_fn(child, predicate, ud)` | |
 | `Modal(main, modal, show)` | `ftxui_component_modal(main, modal, show)` | |
 | `Hoverable(component, bool*)` | `ftxui_component_hoverable(component, hover)` | |
-| `Hoverable(component, on_enter, on_leave)` | Not exposed | |
-| `Hoverable(component, on_change)` | Not exposed | |
+| `Hoverable(component, on_enter, on_leave)` | `ftxui_component_hoverable_callbacks(component, on_enter, ud, on_leave, ud)` | |
+| `Hoverable(component, on_change)` | `ftxui_component_hoverable_change(component, on_change, ud)` | |
 | `Window(WindowOptions)` | `ftxui_component_window(options)` | `ftxui_window_options_t` struct |
 | `Renderer(child, fn)` | `ftxui_component_renderer(component, callback, userdata)` | |
 | `Renderer(fn)` | Not exposed | Use `ftxui_component_renderer` with a null component |
@@ -546,26 +546,36 @@ All component decorators wrap the component's `Render()` output with the corresp
 | `event.is_mouse()` | `ftxui_event_is_mouse(event)` | |
 | `event.mouse().x` | `ftxui_event_mouse_x(event)` | |
 | `event.mouse().y` | `ftxui_event_mouse_y(event)` | |
-| `event.mouse().button` | Not exposed | |
-| `event.mouse().motion` | Not exposed | |
-| `event.mouse().shift/meta/control` | Not exposed | |
-| `event.is_cursor_position()` | Not exposed | |
-| `event.cursor_x()` / `cursor_y()` | Not exposed | |
-| `event.is_cursor_shape()` | Not exposed | |
-| `event.cursor_shape()` | Not exposed | |
-| `event.IsTerminalNameVersion()` | Not exposed | |
-| `event.TerminalName()` | Not exposed | |
-| `event.TerminalVersion()` | Not exposed | |
-| `event.IsTerminalEmulator()` | Not exposed | |
-| `event.IsTerminalCapabilities()` | Not exposed | |
-| `Event::ArrowLeft/Right/Up/Down` | Not exposed | Static constants — C has no way to construct or compare |
-| `Event::Backspace/Delete/Return/Escape/Tab` | Not exposed | Same — use `event.input()` to compare raw bytes |
-| `Event::F1`–`F12` | Not exposed | |
-| `Event::CtrlX`, `Event::AltX`, etc. | Not exposed | |
-| `Event::Custom` | Not exposed | |
-| `Event::Character(char)` | Not exposed | Events are received, not constructed, in C |
-| `Event::Special(string_view)` | Not exposed | |
-| `Event::Mouse(string_view, Mouse)` | Not exposed | |
+| `event.mouse().button` | `ftxui_event_mouse_button(event)` | Returns `ftxui_mouse_button_t` |
+| `event.mouse().motion` | `ftxui_event_mouse_motion(event)` | Returns `ftxui_mouse_motion_t` |
+| `event.mouse().shift/meta/control` | `ftxui_event_mouse_shift/meta/control(event)` | |
+| `event.is_cursor_position()` | `ftxui_event_is_cursor_position(event)` | |
+| `event.cursor_x()` / `cursor_y()` | `ftxui_event_cursor_x/y(event)` | |
+| `event.is_cursor_shape()` | `ftxui_event_is_cursor_shape(event)` | |
+| `event.cursor_shape()` | `ftxui_event_cursor_shape(event)` | |
+| `event.IsTerminalNameVersion()` | `ftxui_event_is_terminal_name_version(event)` | |
+| `event.TerminalName()` | `ftxui_event_terminal_name(event)` | `const char*`; valid for event handle lifetime |
+| `event.TerminalVersion()` | `ftxui_event_terminal_version(event)` | |
+| `event.IsTerminalEmulator()` | `ftxui_event_is_terminal_emulator(event)` | |
+| `event.TerminalEmulatorName/Version()` | `ftxui_event_terminal_emulator_name/version(event)` | |
+| `event.IsTerminalCapabilities()` | `ftxui_event_is_terminal_capabilities(event)` | |
+| `event.TerminalCapabilities()` | `ftxui_event_terminal_capabilities(event, &count)` | `malloc`'d `int*`; caller frees |
+| `event == other` | `ftxui_event_equal(a, b)` | |
+| *(destructor for factory events)* | `ftxui_event_destroy(event)` | |
+| `Event::ArrowLeft/Right/Up/Down` | `ftxui_event_arrow_left/right/up/down()` | Factory; caller must `ftxui_event_destroy` |
+| `Event::ArrowLeftCtrl` etc. | `ftxui_event_arrow_left/right/up/down_ctrl()` | |
+| `Event::Backspace/Delete/Return/Escape` | `ftxui_event_backspace/delete/return/escape()` | |
+| `Event::Tab/TabReverse/Insert/Home/End` | `ftxui_event_tab/tab_reverse/insert/home/end()` | |
+| `Event::PageUp/PageDown` | `ftxui_event_page_up/down()` | |
+| `Event::F1`–`F12` | `ftxui_event_f1()` … `ftxui_event_f12()` | |
+| `Event::Custom` | `ftxui_event_custom()` | |
+| `Event::Character(char)` | `ftxui_event_character_from_char(c)` | |
+| `Event::Special(string_view)` | `ftxui_event_special(input)` | Raw byte sequence escape hatch |
+| `Event::CtrlA`–`CtrlZ` | `ftxui_event_ctrl_char(c)` | c must be a–z or A–Z |
+| `Event::AltA`–`AltZ` | `ftxui_event_alt_char(c)` | c must be a–z or A–Z |
+| `Event::CtrlAltA`–`CtrlAltZ` | Not exposed | Use `ftxui_event_special` with raw bytes |
+| `Event::Mouse(string_view, Mouse)` | Not exposed | Mouse events are received, not constructed |
+| `event.TerminalCapabilityNames()` | Not exposed | Returns `vector<string>`; no C mapping |
 
 ---
 
