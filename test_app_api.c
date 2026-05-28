@@ -94,7 +94,69 @@ static void test_terminal_size(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Terminal info — values may be empty before loop, but must not be NULL
+// 5. Terminal color support — round-trip
+// ---------------------------------------------------------------------------
+static void test_terminal_color_support(void) {
+    printf("test_terminal_color_support...");
+
+    ftxui_terminal_color_t original = ftxui_terminal_color_support();
+    assert(original >= FTXUI_TERMINAL_COLOR_PALETTE1);
+    assert(original <= FTXUI_TERMINAL_COLOR_TRUE_COLOR);
+
+    ftxui_terminal_set_color_support(FTXUI_TERMINAL_COLOR_PALETTE1);
+    assert(ftxui_terminal_color_support() == FTXUI_TERMINAL_COLOR_PALETTE1);
+
+    ftxui_terminal_set_color_support(FTXUI_TERMINAL_COLOR_TRUE_COLOR);
+    assert(ftxui_terminal_color_support() == FTXUI_TERMINAL_COLOR_TRUE_COLOR);
+
+    ftxui_terminal_set_color_support(original);
+    assert(ftxui_terminal_color_support() == original);
+
+    printf(" OK\n");
+}
+
+// ---------------------------------------------------------------------------
+// 6. Terminal quirks — round-trip across all four fields
+// ---------------------------------------------------------------------------
+static void test_terminal_quirks(void) {
+    printf("test_terminal_quirks...");
+
+    ftxui_quirks_t original = ftxui_terminal_get_quirks();
+
+    ftxui_quirks_t modified;
+    modified.block_characters = true;
+    modified.cursor_hiding    = false;
+    modified.component_ascii  = true;
+    modified.color_support    = FTXUI_TERMINAL_COLOR_PALETTE256;
+
+    ftxui_terminal_set_quirks(modified);
+
+    ftxui_quirks_t readback = ftxui_terminal_get_quirks();
+    assert(readback.block_characters == true);
+    assert(readback.cursor_hiding    == false);
+    assert(readback.component_ascii  == true);
+    assert(readback.color_support    == FTXUI_TERMINAL_COLOR_PALETTE256);
+
+    ftxui_terminal_set_quirks(original);
+
+    printf(" OK\n");
+}
+
+// ---------------------------------------------------------------------------
+// 7. Terminal fallback size — smoke test (no observable getter)
+// ---------------------------------------------------------------------------
+static void test_terminal_fallback_size(void) {
+    printf("test_terminal_fallback_size...");
+
+    ftxui_terminal_set_fallback_size(80, 24);
+    ftxui_terminal_set_fallback_size(132, 50);
+    ftxui_terminal_set_fallback_size(0, 0);
+
+    printf(" OK\n");
+}
+
+// ---------------------------------------------------------------------------
+// 8. Terminal info — values may be empty before loop, but must not be NULL
 // ---------------------------------------------------------------------------
 static void test_terminal_info(void) {
     printf("test_terminal_info...");
@@ -255,6 +317,9 @@ int main(void) {
     test_app_active_no_loop();
     test_app_configuration();
     test_terminal_size();
+    test_terminal_color_support();
+    test_terminal_quirks();
+    test_terminal_fallback_size();
     test_terminal_info();
     test_selection_api();
     test_mouse_capture();

@@ -705,6 +705,53 @@ int ftxui_terminal_width();
 int ftxui_terminal_height();
 
 /**
+ * @brief Terminal color support level, matching ftxui::Terminal::Color.
+ */
+typedef enum {
+    FTXUI_TERMINAL_COLOR_PALETTE1   = 0,
+    FTXUI_TERMINAL_COLOR_PALETTE16  = 1,
+    FTXUI_TERMINAL_COLOR_PALETTE256 = 2,
+    FTXUI_TERMINAL_COLOR_TRUE_COLOR = 3,
+} ftxui_terminal_color_t;
+
+/**
+ * @brief Flat representation of ftxui::Terminal::Quirks.
+ * Retrieve with ftxui_terminal_get_quirks, modify fields, then apply with
+ * ftxui_terminal_set_quirks.
+ */
+typedef struct {
+    bool block_characters;
+    bool cursor_hiding;
+    bool component_ascii;
+    ftxui_terminal_color_t color_support;
+} ftxui_quirks_t;
+
+/**
+ * @brief Set the fallback terminal size used when auto-detection fails.
+ */
+void ftxui_terminal_set_fallback_size(int w, int h);
+
+/**
+ * @brief Return the global terminal color support level.
+ */
+ftxui_terminal_color_t ftxui_terminal_color_support(void);
+
+/**
+ * @brief Override the global terminal color support level.
+ */
+void ftxui_terminal_set_color_support(ftxui_terminal_color_t color);
+
+/**
+ * @brief Return the current terminal quirks as a flat struct.
+ */
+ftxui_quirks_t ftxui_terminal_get_quirks(void);
+
+/**
+ * @brief Apply terminal quirks from a flat struct.
+ */
+void ftxui_terminal_set_quirks(ftxui_quirks_t quirks);
+
+/**
  * @brief Cleans up and destroys a component.
  * 
  * @param component The component handle to destroy.

@@ -75,11 +75,15 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 |-----------|---------|-------|
 | `Terminal::Size().dimx` | `ftxui_terminal_width()` | |
 | `Terminal::Size().dimy` | `ftxui_terminal_height()` | |
-| `Terminal::SetFallbackSize(dims)` | Not exposed | |
-| `Terminal::ColorSupport()` | Not exposed | |
-| `Terminal::SetColorSupport(color)` | Not exposed | |
-| `Terminal::GetQuirks()` | Not exposed | |
-| `Terminal::SetQuirks(quirks)` | Not exposed | |
+| `Terminal::SetFallbackSize(dims)` | `ftxui_terminal_set_fallback_size(w, h)` | |
+| `Terminal::ColorSupport()` | `ftxui_terminal_color_support()` | Returns `ftxui_terminal_color_t` |
+| `Terminal::SetColorSupport(color)` | `ftxui_terminal_set_color_support(color)` | |
+| `Terminal::GetQuirks()` | `ftxui_terminal_get_quirks()` | Returns `ftxui_quirks_t` value struct |
+| `Terminal::SetQuirks(quirks)` | `ftxui_terminal_set_quirks(quirks)` | Takes `ftxui_quirks_t` by value |
+| `enum Terminal::Color` | `ftxui_terminal_color_t` | PALETTE1/16/256, TRUE_COLOR |
+| `class Terminal::Quirks` | `ftxui_quirks_t` | Flat struct; no opaque handle needed |
+| `class Terminal::TerminalInfo` | Not exposed | Internal construction helper; setters only |
+| `Terminal::ComputeColorSupport(...)` | Not exposed | Six-argument utility; App detects automatically |
 
 ---
 

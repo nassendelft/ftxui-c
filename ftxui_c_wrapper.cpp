@@ -175,6 +175,37 @@ int ftxui_terminal_height() {
     return ftxui::Terminal::Size().dimy;
 }
 
+void ftxui_terminal_set_fallback_size(int w, int h) {
+    ftxui::Terminal::SetFallbackSize({w, h});
+}
+
+ftxui_terminal_color_t ftxui_terminal_color_support() {
+    return (ftxui_terminal_color_t)ftxui::Terminal::ColorSupport();
+}
+
+void ftxui_terminal_set_color_support(ftxui_terminal_color_t color) {
+    ftxui::Terminal::SetColorSupport((ftxui::Terminal::Color)color);
+}
+
+ftxui_quirks_t ftxui_terminal_get_quirks() {
+    auto q = ftxui::Terminal::GetQuirks();
+    ftxui_quirks_t result;
+    result.block_characters = q.BlockCharacters();
+    result.cursor_hiding = q.CursorHiding();
+    result.component_ascii = q.ComponentAscii();
+    result.color_support = (ftxui_terminal_color_t)q.ColorSupport();
+    return result;
+}
+
+void ftxui_terminal_set_quirks(ftxui_quirks_t quirks) {
+    ftxui::Terminal::Quirks q;
+    q.SetBlockCharacters(quirks.block_characters);
+    q.SetCursorHiding(quirks.cursor_hiding);
+    q.SetComponentAscii(quirks.component_ascii);
+    q.SetColorSupport((ftxui::Terminal::Color)quirks.color_support);
+    ftxui::Terminal::SetQuirks(q);
+}
+
 void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component) {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
