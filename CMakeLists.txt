@@ -22,3 +22,11 @@ set_target_properties(ftxui_c_binding_static PROPERTIES OUTPUT_NAME "ftxui_c_bin
 add_executable(test_c test_c.c)
 target_link_libraries(test_c PRIVATE ftxui_c_binding_shared)
 target_include_directories(test_c PRIVATE .)
+
+# App API tests
+add_executable(test_app_api test_app_api.c)
+target_link_libraries(test_app_api PRIVATE ftxui_c_binding_shared)
+target_include_directories(test_app_api PRIVATE .)
+
+enable_testing()
+add_test(NAME test_app_api COMMAND test_app_api)

@@ -12,7 +12,9 @@ extern "C" {
 typedef void* ftxui_app_handle_t;
 typedef void* ftxui_component_handle_t;
 typedef void* ftxui_element_handle_t;
-typedef void* ftxui_color_handle_t; // New opaque handle for Color class
+typedef void* ftxui_color_handle_t;
+typedef void* ftxui_captured_mouse_handle_t;
+typedef void* ftxui_event_handle_t;
 
 /**
  * @brief A callback function for rendering a component.
@@ -542,6 +544,29 @@ ftxui_app_handle_t ftxui_app_create_fit_component();
 ftxui_app_handle_t ftxui_app_create_terminal_output();
 
 /**
+ * @brief Creates an app with a fixed size.
+ *
+ * @param w Width in columns.
+ * @param h Height in rows.
+ * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
+ */
+ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h);
+
+/**
+ * @brief Creates an app taking the full terminal size using the primary screen buffer.
+ *
+ * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
+ */
+ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen();
+
+/**
+ * @brief Creates an app taking the full terminal size using the alternate screen buffer.
+ *
+ * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
+ */
+ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen();
+
+/**
  * @brief Creates a simple text element.
  * 
  * @param text The text to display.
@@ -575,10 +600,95 @@ void ftxui_app_exit(ftxui_app_handle_t app);
 
 /**
  * @brief Cleans up and destroys the FTXUI app.
- * 
+ *
  * @param app The app handle to destroy.
  */
 void ftxui_app_destroy(ftxui_app_handle_t app);
+
+// --- App configuration (call before ftxui_app_loop) ---
+
+/**
+ * @brief Enable or disable mouse event tracking. Enabled by default.
+ */
+void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable);
+
+/**
+ * @brief Enable or disable automatic piped input handling. Enabled by default.
+ */
+void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable);
+
+/**
+ * @brief Force FTXUI to handle or not handle Ctrl-C regardless of component event handling.
+ */
+void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force);
+
+/**
+ * @brief Force FTXUI to handle or not handle Ctrl-Z regardless of component event handling.
+ */
+void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force);
+
+// --- App operations ---
+
+/**
+ * @brief Post a closure to be executed on the main loop thread. Safe to call from any thread.
+ */
+void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+
+/**
+ * @brief Post an event to the main loop. The event is copied.
+ */
+void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event);
+
+/**
+ * @brief Execute callback with the terminal temporarily restored to its original state.
+ */
+void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+
+/**
+ * @brief Return the currently active app handle, or NULL if none is running.
+ */
+ftxui_app_handle_t ftxui_app_active();
+
+// --- Terminal info ---
+
+/**
+ * @brief Return the terminal name. Pointer is valid until the app is destroyed. Do not free.
+ */
+const char* ftxui_app_terminal_name(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal version number.
+ */
+int ftxui_app_terminal_version(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal emulator name. Pointer is valid until the app is destroyed. Do not free.
+ */
+const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal emulator version string. Pointer is valid until the app is destroyed. Do not free.
+ */
+const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal capabilities as a malloc'd int array. Sets *count to the number of elements.
+ * The caller must free() the returned pointer. Returns NULL if there are no capabilities.
+ */
+int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count);
+
+// --- Mouse capture ---
+
+/**
+ * @brief Try to capture the mouse exclusively. Returns NULL if already captured.
+ * Destroy the handle with ftxui_captured_mouse_destroy to release the capture.
+ */
+ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app);
+
+/**
+ * @brief Release a captured mouse handle obtained from ftxui_app_capture_mouse.
+ */
+void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle);
 
 /**
  * @brief Returns the current terminal width in columns.
@@ -1468,7 +1578,6 @@ ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t eleme
 ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
 
 // --- CatchEvent ---
-typedef void* ftxui_event_handle_t;
 const char* ftxui_event_input(ftxui_event_handle_t event);
 const char* ftxui_event_debug_string(ftxui_event_handle_t event);
 bool ftxui_event_is_character(ftxui_event_handle_t event);

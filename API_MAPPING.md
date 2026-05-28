@@ -41,31 +41,31 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | `App::Fullscreen()` | `ftxui_app_create_fullscreen()` | |
 | `App::FitComponent()` | `ftxui_app_create_fit_component()` | |
 | `App::TerminalOutput()` | `ftxui_app_create_terminal_output()` | |
-| `App::FixedSize(int, int)` | Not exposed | |
-| `App::FullscreenPrimaryScreen()` | Not exposed | |
-| `App::FullscreenAlternateScreen()` | Not exposed | |
+| `App::FixedSize(int, int)` | `ftxui_app_create_fixed_size(w, h)` | |
+| `App::FullscreenPrimaryScreen()` | `ftxui_app_create_fullscreen_primary_screen()` | |
+| `App::FullscreenAlternateScreen()` | `ftxui_app_create_fullscreen_alternate_screen()` | |
 | `app.Loop(component)` | `ftxui_app_loop(app, component)` | |
 | `app.Exit()` | `ftxui_app_exit(app)` | |
-| `app.ExitLoopClosure()` | Not exposed | |
+| `app.ExitLoopClosure()` | Not exposed | Use `ftxui_app_exit` |
 | `app.RequestAnimationFrame()` | `ftxui_app_request_animation_frame(app)` | |
-| `app.Post(task)` | Not exposed | |
-| `app.PostEvent(event)` | Not exposed | |
+| `app.Post(task)` | `ftxui_app_post(app, callback, userdata)` | Thread-safe; posts a closure |
+| `app.PostEvent(event)` | `ftxui_app_post_event(app, event)` | Copies the event |
 | `app.GetSelection()` | `ftxui_app_get_selection(app)` | Returns `char*`; caller must free |
 | `app.SelectionChange(callback)` | `ftxui_app_selection_change(app, cb, userdata)` | |
-| `app.TrackMouse(bool)` | Not exposed | |
-| `app.HandlePipedInput(bool)` | Not exposed | |
-| `app.ForceHandleCtrlC(bool)` | Not exposed | |
-| `app.ForceHandleCtrlZ(bool)` | Not exposed | |
-| `app.WithRestoredIO(fn)` | Not exposed | |
-| `app.CaptureMouse()` | Not exposed | |
-| `app.TerminalName()` | Not exposed | |
-| `app.TerminalVersion()` | Not exposed | |
-| `app.TerminalEmulatorName()` | Not exposed | |
-| `app.TerminalEmulatorVersion()` | Not exposed | |
-| `app.TerminalCapabilities()` | Not exposed | |
+| `app.TrackMouse(bool)` | `ftxui_app_track_mouse(app, enable)` | Call before Loop |
+| `app.HandlePipedInput(bool)` | `ftxui_app_handle_piped_input(app, enable)` | Call before Loop |
+| `app.ForceHandleCtrlC(bool)` | `ftxui_app_force_handle_ctrl_c(app, force)` | |
+| `app.ForceHandleCtrlZ(bool)` | `ftxui_app_force_handle_ctrl_z(app, force)` | |
+| `app.WithRestoredIO(fn)` | `ftxui_app_with_restored_io(app, callback, userdata)` | Executes callback synchronously with terminal restored |
+| `app.CaptureMouse()` | `ftxui_app_capture_mouse(app)` | Returns `ftxui_captured_mouse_handle_t`; NULL if already captured |
+| `app.TerminalName()` | `ftxui_app_terminal_name(app)` | `const char*`; valid until app destroyed; do not free |
+| `app.TerminalVersion()` | `ftxui_app_terminal_version(app)` | Returns `int` |
+| `app.TerminalEmulatorName()` | `ftxui_app_terminal_emulator_name(app)` | `const char*`; valid until app destroyed; do not free |
+| `app.TerminalEmulatorVersion()` | `ftxui_app_terminal_emulator_version(app)` | `const char*`; valid until app destroyed; do not free |
+| `app.TerminalCapabilities()` | `ftxui_app_terminal_capabilities(app, &count)` | Returns malloc'd `int*`; caller must free |
 | `app.TerminalCapabilityNames()` | Not exposed | |
-| `App::Active()` | Not exposed | |
-| `App::PostEventOrExecute(fn)` | Not exposed | |
+| `App::Active()` | `ftxui_app_active()` | Returns handle of currently running app, or NULL |
+| `App::PostEventOrExecute(fn)` | Not exposed | Edge-case; `ftxui_app_post` covers it |
 
 ---
 
@@ -600,6 +600,8 @@ These types and functions exist in the C API with no direct FTXUI C++ equivalent
 | `ftxui_element_destroy(element)` | Free element handle |
 | `ftxui_app_destroy(app)` | Free app handle |
 | `ftxui_color_destroy(color)` | Free color handle |
+| `ftxui_captured_mouse_handle_t` | Scoped mouse capture; destroy to release |
+| `ftxui_captured_mouse_destroy(handle)` | Release mouse capture |
 | `ftxui_canvas_destroy(canvas)` | Free canvas handle |
 | `ftxui_linear_gradient_destroy(gradient)` | Free gradient handle |
 | `ftxui_table_destroy(table)` | Free table handle |

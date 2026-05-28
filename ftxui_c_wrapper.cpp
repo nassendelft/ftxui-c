@@ -1,16 +1,17 @@
 #include "ftxui_c_api.h"
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
-#include <ftxui/component/animation.hpp> // Include for animation easing functions
+#include <ftxui/component/animation.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/component_options.hpp>
-#include <ftxui/screen/color.hpp> // Include for ftxui::Color
-#include <ftxui/screen/terminal.hpp> // Include for ftxui::Terminal::Size
-#include <ftxui/dom/elements.hpp> // Include for ftxui::size
+#include <ftxui/screen/color.hpp>
+#include <ftxui/screen/terminal.hpp>
+#include <ftxui/dom/elements.hpp>
 #include <ftxui/dom/direction.hpp>
+#include <cstdlib>
 #include <memory>
 #include <vector>
-#include <string.h> // For strdup
+#include <string.h>
 
 // Wrapper for Component to handle lifetime and children for containers
 struct FTXUIComponentWrapper {
@@ -20,6 +21,19 @@ struct FTXUIComponentWrapper {
 // Wrapper for Element to handle lifetime
 struct FTXUIElementWrapper {
     ftxui::Element element;
+};
+
+// Wrapper for CapturedMouse to hold the unique_ptr (releasing it frees the capture)
+struct FTXUICapturedMouseWrapper {
+    ftxui::CapturedMouse captured;
+};
+
+struct FTXUIEventWrapper {
+    ftxui::Event event;
+    std::string debug_str;
+    std::string character_str;
+    FTXUIEventWrapper(ftxui::Event e) : event(std::move(e)), debug_str(event.DebugString()),
+        character_str(event.is_character() ? event.character() : "") {}
 };
 
 // --- Color Implementations ---
@@ -129,6 +143,30 @@ ftxui_app_handle_t ftxui_app_create_terminal_output() {
     }
 }
 
+ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h) {
+    try {
+        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FixedSize(w, h)));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen() {
+    try {
+        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FullscreenPrimaryScreen()));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen() {
+    try {
+        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FullscreenAlternateScreen()));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 int ftxui_terminal_width() {
     return ftxui::Terminal::Size().dimx;
 }
@@ -155,6 +193,89 @@ void ftxui_app_exit(ftxui_app_handle_t app) {
 void ftxui_app_destroy(ftxui_app_handle_t app) {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     delete ftxui_app;
+}
+
+void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (a) a->TrackMouse(enable);
+}
+
+void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (a) a->HandlePipedInput(enable);
+}
+
+void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (a) a->ForceHandleCtrlC(force);
+}
+
+void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (a) a->ForceHandleCtrlZ(force);
+}
+
+void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (a && callback) a->Post([callback, userdata] { callback(userdata); });
+}
+
+void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event) {
+    auto* a = static_cast<ftxui::App*>(app);
+    auto* w = static_cast<FTXUIEventWrapper*>(event);
+    if (a && w) a->PostEvent(w->event);
+}
+
+void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (a && callback) a->WithRestoredIO([callback, userdata] { callback(userdata); })();
+}
+
+ftxui_app_handle_t ftxui_app_active() {
+    return static_cast<ftxui_app_handle_t>(ftxui::App::Active());
+}
+
+const char* ftxui_app_terminal_name(ftxui_app_handle_t app) {
+    auto* a = static_cast<ftxui::App*>(app);
+    return a ? a->TerminalName().c_str() : "";
+}
+
+int ftxui_app_terminal_version(ftxui_app_handle_t app) {
+    auto* a = static_cast<ftxui::App*>(app);
+    return a ? a->TerminalVersion() : 0;
+}
+
+const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app) {
+    auto* a = static_cast<ftxui::App*>(app);
+    return a ? a->TerminalEmulatorName().c_str() : "";
+}
+
+const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app) {
+    auto* a = static_cast<ftxui::App*>(app);
+    return a ? a->TerminalEmulatorVersion().c_str() : "";
+}
+
+int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (!a || !count) return nullptr;
+    const auto& caps = a->TerminalCapabilities();
+    *count = (int)caps.size();
+    if (caps.empty()) return nullptr;
+    int* result = (int*)std::malloc(caps.size() * sizeof(int));
+    for (size_t i = 0; i < caps.size(); i++) result[i] = caps[i];
+    return result;
+}
+
+ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app) {
+    auto* a = static_cast<ftxui::App*>(app);
+    if (!a) return nullptr;
+    auto cap = a->CaptureMouse();
+    if (!cap) return nullptr;
+    return static_cast<ftxui_captured_mouse_handle_t>(new FTXUICapturedMouseWrapper{std::move(cap)});
+}
+
+void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle) {
+    delete static_cast<FTXUICapturedMouseWrapper*>(handle);
 }
 
 void ftxui_component_destroy(ftxui_component_handle_t component) {
@@ -1398,14 +1519,6 @@ static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
 }
 
 // --- CatchEvent ---
-struct FTXUIEventWrapper {
-    ftxui::Event event;
-    std::string debug_str;
-    std::string character_str;
-    FTXUIEventWrapper(ftxui::Event e) : event(std::move(e)), debug_str(event.DebugString()),
-        character_str(event.is_character() ? event.character() : "") {}
-};
-
 const char* ftxui_event_input(ftxui_event_handle_t event) {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w ? w->event.input().c_str() : nullptr;
