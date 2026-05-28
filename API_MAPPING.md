@@ -380,8 +380,8 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | `table.SelectRow(row)` | `ftxui_table_select_row(table, row)` | |
 | `table.SelectRows(min, max)` | `ftxui_table_select_rows(table, from, to)` | |
 | `table.SelectColumn(col)` | `ftxui_table_select_column(table, col)` | |
-| `table.SelectColumns(min, max)` | Not exposed | |
-| `table.SelectRectangle(c_min, c_max, r_min, r_max)` | Not exposed | |
+| `table.SelectColumns(min, max)` | `ftxui_table_select_columns(table, from, to)` | |
+| `table.SelectRectangle(c_min, c_max, r_min, r_max)` | `ftxui_table_select_rectangle(table, col_min, col_max, row_min, row_max)` | |
 | *(destructor)* | `ftxui_table_destroy(table)` | |
 
 ---
@@ -392,30 +392,31 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 |-----------|---------|-------|
 | `sel.Border(BorderStyle)` | `ftxui_table_selection_border(sel, style)` | |
 | `sel.Border(BorderStyle, Decorator)` | `ftxui_table_selection_border_color(sel, style, color)` | Only color decorator |
-| `sel.BorderLeft(BorderStyle)` | Not exposed | |
-| `sel.BorderRight(BorderStyle)` | Not exposed | |
-| `sel.BorderTop(BorderStyle)` | Not exposed | |
-| `sel.BorderBottom(BorderStyle)` | Not exposed | |
-| `sel.Separator(BorderStyle)` | Not exposed | |
+| `sel.BorderLeft(BorderStyle)` | `ftxui_table_selection_border_left(sel, style)` | |
+| `sel.BorderRight(BorderStyle)` | `ftxui_table_selection_border_right(sel, style)` | |
+| `sel.BorderTop(BorderStyle)` | `ftxui_table_selection_border_top(sel, style)` | |
+| `sel.BorderBottom(BorderStyle)` | `ftxui_table_selection_border_bottom(sel, style)` | |
+| `sel.Separator(BorderStyle)` | `ftxui_table_selection_separator(sel, style)` | |
 | `sel.SeparatorVertical(BorderStyle)` | `ftxui_table_selection_separator_vertical(sel, style)` | |
-| `sel.SeparatorHorizontal(BorderStyle)` | Not exposed | |
-| `sel.Decorate(Decorator)` | Not exposed | |
-| `sel.DecorateAlternateRow(Decorator, modulo, shift)` | Not exposed | |
-| `sel.DecorateAlternateColumn(Decorator, modulo, shift)` | Not exposed | |
-| `sel.DecorateBorder(Decorator)` | Not exposed | |
-| `sel.DecorateBorderLeft(Decorator)` | Not exposed | |
-| `sel.DecorateBorderRight(Decorator)` | Not exposed | |
-| `sel.DecorateBorderTop(Decorator)` | Not exposed | |
-| `sel.DecorateBorderBottom(Decorator)` | Not exposed | |
-| `sel.DecorateSeparator(Decorator)` | Not exposed | |
-| `sel.DecorateSeparatorVertical(Decorator)` | Not exposed | |
-| `sel.DecorateSeparatorHorizontal(Decorator)` | Not exposed | |
-| `sel.DecorateCells(Decorator)` | Not exposed | |
-| `sel.DecorateCellsAlternateColumn(Decorator, modulo, shift)` | Not exposed | |
-| `sel.DecorateCellsAlternateRow(Decorator, modulo, shift)` | `ftxui_table_selection_decorate_cells_color_alternate_row(sel, color, modulo, offset)` | Only color; no general Decorator |
+| `sel.SeparatorHorizontal(BorderStyle)` | `ftxui_table_selection_separator_horizontal(sel, style)` | |
+| `sel.Decorate(Decorator)` | `ftxui_table_selection_decorate(sel, cb, userdata)` | `ftxui_decorator_callback_t`; input handle consumed |
+| `sel.DecorateAlternateRow(Decorator, modulo, shift)` | `ftxui_table_selection_decorate_alternate_row(sel, cb, userdata, modulo, shift)` | |
+| `sel.DecorateAlternateColumn(Decorator, modulo, shift)` | `ftxui_table_selection_decorate_alternate_column(sel, cb, userdata, modulo, shift)` | |
+| `sel.DecorateBorder(Decorator)` | `ftxui_table_selection_decorate_border(sel, cb, userdata)` | |
+| `sel.DecorateBorderLeft(Decorator)` | `ftxui_table_selection_decorate_border_left(sel, cb, userdata)` | |
+| `sel.DecorateBorderRight(Decorator)` | `ftxui_table_selection_decorate_border_right(sel, cb, userdata)` | |
+| `sel.DecorateBorderTop(Decorator)` | `ftxui_table_selection_decorate_border_top(sel, cb, userdata)` | |
+| `sel.DecorateBorderBottom(Decorator)` | `ftxui_table_selection_decorate_border_bottom(sel, cb, userdata)` | |
+| `sel.DecorateSeparator(Decorator)` | `ftxui_table_selection_decorate_separator(sel, cb, userdata)` | |
+| `sel.DecorateSeparatorVertical(Decorator)` | `ftxui_table_selection_decorate_separator_vertical(sel, cb, userdata)` | |
+| `sel.DecorateSeparatorHorizontal(Decorator)` | `ftxui_table_selection_decorate_separator_horizontal(sel, cb, userdata)` | |
+| `sel.DecorateCells(Decorator)` | `ftxui_table_selection_decorate_cells(sel, cb, userdata)` | |
+| `sel.DecorateCellsAlternateColumn(Decorator, modulo, shift)` | `ftxui_table_selection_decorate_cells_alternate_column(sel, cb, userdata, modulo, shift)` | |
+| `sel.DecorateCellsAlternateRow(Decorator, modulo, shift)` | `ftxui_table_selection_decorate_cells_alternate_row(sel, cb, userdata, modulo, shift)` | General form |
 | *(bold shortcut)* | `ftxui_table_selection_decorate_bold(sel)` | Convenience — calls `Decorate(bold)` |
 | *(align_right shortcut)* | `ftxui_table_selection_decorate_cells_align_right(sel)` | Convenience |
 | *(color shortcut)* | `ftxui_table_selection_decorate_cells_color(sel, color)` | Convenience |
+| *(color alternate-row shortcut)* | `ftxui_table_selection_decorate_cells_color_alternate_row(sel, color, modulo, offset)` | Convenience |
 | *(destructor)* | `ftxui_table_selection_destroy(sel)` | |
 
 ---

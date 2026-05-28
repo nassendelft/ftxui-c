@@ -1774,6 +1774,11 @@ ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, i
 typedef void* ftxui_table_handle_t;
 typedef void* ftxui_table_selection_handle_t;
 
+// A C-callable decorator: receives an owned element handle, returns a new one.
+// The input handle is consumed by the call — do not free it separately.
+typedef ftxui_element_handle_t (*ftxui_decorator_callback_t)(
+    ftxui_element_handle_t element, void* userdata);
+
 // cells is a flat row-major array of (rows * cols) strings
 ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols);
 void ftxui_table_destroy(ftxui_table_handle_t table);
@@ -1784,11 +1789,38 @@ ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table
 ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to);
 ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col);
 ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row);
+ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to);
+ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max);
 void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel);
 
+// Border / separator styling
 void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
 void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color);
+void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
 void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+
+// Generic decorator callbacks
+void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+
+// Convenience shortcuts
 void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel);
 void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel);
 void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color);

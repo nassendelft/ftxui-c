@@ -198,7 +198,97 @@ static void test_color_info(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 9. Terminal info — values may be empty before loop, but must not be NULL
+// 9. Table API — selection, border/separator styling, and decorator callbacks
+// ---------------------------------------------------------------------------
+
+static ftxui_element_handle_t bold_decorator(ftxui_element_handle_t el, void* userdata) {
+    (void)userdata;
+    return ftxui_element_bold(el);
+}
+
+static void test_table_api(void) {
+    printf("test_table_api...");
+
+    const char* cells[] = {"A", "B", "C", "D"};
+
+    // --- SelectColumns and SelectRectangle (smoke) ---
+    {
+        ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
+        assert(t != NULL);
+
+        ftxui_table_selection_handle_t sc = ftxui_table_select_columns(t, 0, 1);
+        assert(sc != NULL);
+        ftxui_table_selection_destroy(sc);
+
+        ftxui_table_selection_handle_t sr = ftxui_table_select_rectangle(t, 0, 1, 0, 1);
+        assert(sr != NULL);
+        ftxui_table_selection_destroy(sr);
+
+        ftxui_table_destroy(t);
+    }
+
+    // --- BorderLeft/Right/Top/Bottom, Separator, SeparatorHorizontal ---
+    {
+        ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
+        ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
+        ftxui_table_selection_border_left(sel, FTXUI_BORDER_STYLE_LIGHT);
+        ftxui_table_selection_border_right(sel, FTXUI_BORDER_STYLE_LIGHT);
+        ftxui_table_selection_border_top(sel, FTXUI_BORDER_STYLE_LIGHT);
+        ftxui_table_selection_border_bottom(sel, FTXUI_BORDER_STYLE_LIGHT);
+        ftxui_table_selection_separator(sel, FTXUI_BORDER_STYLE_LIGHT);
+        ftxui_table_selection_separator_horizontal(sel, FTXUI_BORDER_STYLE_LIGHT);
+        ftxui_table_selection_destroy(sel);
+
+        ftxui_element_handle_t el = ftxui_table_render(t);
+        assert(el != NULL);
+        ftxui_element_destroy(el);
+        ftxui_table_destroy(t);
+    }
+
+    // --- Decorate (general callback) ---
+    {
+        ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
+        ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
+        ftxui_table_selection_decorate(sel, bold_decorator, NULL);
+        ftxui_table_selection_destroy(sel);
+
+        ftxui_element_handle_t el = ftxui_table_render(t);
+        assert(el != NULL);
+        ftxui_element_destroy(el);
+        ftxui_table_destroy(t);
+    }
+
+    // --- DecorateCells (general callback) ---
+    {
+        ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
+        ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
+        ftxui_table_selection_decorate_cells(sel, bold_decorator, NULL);
+        ftxui_table_selection_destroy(sel);
+
+        ftxui_element_handle_t el = ftxui_table_render(t);
+        assert(el != NULL);
+        ftxui_element_destroy(el);
+        ftxui_table_destroy(t);
+    }
+
+    // --- DecorateCellsAlternateRow (general callback) ---
+    {
+        ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
+        ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
+        ftxui_table_selection_decorate_cells_alternate_row(sel, bold_decorator, NULL, 2, 0);
+        ftxui_table_selection_destroy(sel);
+
+        ftxui_element_handle_t el = ftxui_table_render(t);
+        assert(el != NULL);
+        ftxui_element_destroy(el);
+        ftxui_table_destroy(t);
+    }
+
+    printf(" OK\n");
+}
+
+// ---------------------------------------------------------------------------
+// 10. Terminal info — values may be empty before loop, but must not be NULL
 // ---------------------------------------------------------------------------
 static void test_terminal_info(void) {
     printf("test_terminal_info...");
@@ -363,6 +453,7 @@ int main(void) {
     test_terminal_quirks();
     test_terminal_fallback_size();
     test_color_info();
+    test_table_api();
     test_terminal_info();
     test_selection_api();
     test_mouse_capture();
