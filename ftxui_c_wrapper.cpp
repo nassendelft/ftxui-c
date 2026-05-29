@@ -8,6 +8,9 @@
 #include <ftxui/screen/terminal.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/dom/direction.hpp>
+#include <ftxui/dom/flexbox_config.hpp>
+#include <ftxui/dom/linear_gradient.hpp>
+#include <ftxui/component/loop.hpp>
 #include <cstdlib>
 #include <memory>
 #include <vector>
@@ -36,7 +39,9 @@ struct FTXUIEventWrapper {
         character_str(event.is_character() ? event.character() : "") {}
 };
 
-// --- Color Implementations ---
+// =============================================================================
+// §4  Color  (ftxui/screen/color.hpp)
+// =============================================================================
 
 ftxui_color_handle_t ftxui_color_default() {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color());
@@ -118,7 +123,98 @@ void ftxui_color_destroy(ftxui_color_handle_t color) {
     delete static_cast<ftxui::Color*>(color);
 }
 
-// --- App Implementations ---
+// =============================================================================
+// §5  Color Info  (ftxui/screen/color_info.hpp)
+// =============================================================================
+
+#include <ftxui/screen/color_info.hpp>
+#include <algorithm>
+
+static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
+    ftxui_color_info_t r;
+    r.index_256  = info.index_256;
+    r.index_16   = info.index_16;
+    r.name       = info.name;
+    r.red        = info.red;
+    r.green      = info.green;
+    r.blue       = info.blue;
+    r.hue        = info.hue;
+    r.saturation = info.saturation;
+    r.value      = info.value;
+    return r;
+}
+
+static const ftxui_color_info_t k_padding_entry = {-1, 0, "", 0, 0, 0, 0, 0, 0};
+
+ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
+    auto info_columns = ftxui::ColorInfoSorted2D();
+    int rows = static_cast<int>(info_columns.size());
+    int cols = 0;
+    for (auto& col : info_columns) {
+        cols = std::max(cols, static_cast<int>(col.size()));
+    }
+    *num_rows = rows;
+    *max_cols = cols;
+    if (rows == 0 || cols == 0) return nullptr;
+
+    auto* result = new ftxui_color_info_t[rows * cols];
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            int idx = r * cols + c;
+            if (c < static_cast<int>(info_columns[r].size())) {
+                result[idx] = to_c_color_info(info_columns[r][c]);
+            } else {
+                result[idx] = k_padding_entry;
+            }
+        }
+    }
+    return result;
+}
+
+void ftxui_color_info_free(ftxui_color_info_t* data) {
+    delete[] data;
+}
+
+ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) {
+    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette256)index));
+}
+
+ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) {
+    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette16)index));
+}
+
+// =============================================================================
+// §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
+// =============================================================================
+
+ftxui_linear_gradient_handle_t ftxui_linear_gradient_create() {
+    return static_cast<ftxui_linear_gradient_handle_t>(new ftxui::LinearGradient());
+}
+
+void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient) {
+    delete static_cast<ftxui::LinearGradient*>(gradient);
+}
+
+void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle) {
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    if (g) g->Angle(angle);
+}
+
+void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color) {
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (g && col) g->Stop(*col);
+}
+
+void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position) {
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (g && col) g->Stop(*col, position);
+}
+
+// =============================================================================
+// §1  App  (ftxui/component/app.hpp)
+// =============================================================================
 ftxui_app_handle_t ftxui_app_create_fullscreen() {
     try {
         return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::Fullscreen()));
@@ -166,6 +262,23 @@ ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen() {
         return nullptr;
     }
 }
+
+void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
+    auto* ftxui_app = static_cast<ftxui::App*>(app);
+    if (ftxui_app && callback) {
+        ftxui_app->SelectionChange([callback, userdata] { callback(userdata); });
+    }
+}
+
+char* ftxui_app_get_selection(ftxui_app_handle_t app) {
+    auto* ftxui_app = static_cast<ftxui::App*>(app);
+    if (!ftxui_app) return strdup("");
+    return strdup(ftxui_app->GetSelection().c_str());
+}
+
+// =============================================================================
+// §2  Terminal  (ftxui/screen/terminal.hpp)
+// =============================================================================
 
 int ftxui_terminal_width() {
     return ftxui::Terminal::Size().dimx;
@@ -314,6 +427,25 @@ void ftxui_component_destroy(ftxui_component_handle_t component) {
     delete wrapper;
 }
 
+// =============================================================================
+// §19  Components — Advanced
+// =============================================================================
+
+static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
+    switch (d) {
+        case FTXUI_DIRECTION_UP: return ftxui::Direction::Up;
+        case FTXUI_DIRECTION_DOWN: return ftxui::Direction::Down;
+        case FTXUI_DIRECTION_LEFT: return ftxui::Direction::Left;
+        case FTXUI_DIRECTION_RIGHT: return ftxui::Direction::Right;
+        default: return ftxui::Direction::Right;
+    }
+}
+
+struct FTXUIWindowWrapper {
+    std::string title;
+    ftxui::Component component;
+};
+
 ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata) {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     auto* wrapper = new FTXUIComponentWrapper();
@@ -357,6 +489,10 @@ static ftxui_element_handle_t apply_element_modifier(ftxui_element_handle_t elem
     return create_element_wrapper(std::move(el));
 }
 
+// =============================================================================
+// §7  Elements — Basic  (ftxui/dom/elements.hpp)
+// =============================================================================
+
 ftxui_element_handle_t ftxui_element_text(const char* text) {
     return create_element_wrapper(ftxui::text(text));
 }
@@ -364,6 +500,10 @@ ftxui_element_handle_t ftxui_element_text(const char* text) {
 ftxui_element_handle_t ftxui_element_gauge(double value) {
     return create_element_wrapper(ftxui::gauge(value));
 }
+
+// =============================================================================
+// §8  Elements — Separators
+// =============================================================================
 
 ftxui_element_handle_t ftxui_element_separator() {
     return create_element_wrapper(ftxui::separator());
@@ -423,6 +563,10 @@ ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, f
     return create_element_wrapper(ftxui::separatorVSelector(up, down, *unselected_color_ptr, *selected_color_ptr));
 }
 
+// =============================================================================
+// §9  Elements — Layout
+// =============================================================================
+
 ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count) {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
@@ -456,6 +600,10 @@ ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_
     return create_element_wrapper(ftxui::window(std::move(title_wrapper->element), std::move(element_wrapper->element)));
 }
 
+// =============================================================================
+// §10  Elements — Styling Decorators
+// =============================================================================
+
 ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color_handle) {
     auto* color_ptr = static_cast<ftxui::Color*>(color_handle);
     if (!color_ptr) return nullptr;
@@ -472,6 +620,20 @@ ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftx
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::bgcolor(*color_ptr);
     });
+}
+
+ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
+    auto* ew = static_cast<FTXUIElementWrapper*>(element);
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    if (!ew || !g) return nullptr;
+    return create_element_wrapper(ew->element | ftxui::bgcolor(*g));
+}
+
+ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
+    auto* ew = static_cast<FTXUIElementWrapper*>(element);
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    if (!ew || !g) return nullptr;
+    return create_element_wrapper(ew->element | ftxui::color(*g));
 }
 
 // -- START decorators
@@ -542,6 +704,10 @@ ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element
     });
  }
 
+// =============================================================================
+// §12  Elements — Frame / Scroll / Focus
+// =============================================================================
+
 ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element) {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::vscroll_indicator;
@@ -572,9 +738,9 @@ ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ft
     return apply_element_modifier(element, ftxui_constraint_modifier);
 }
 
-// -- END decorators
-
-// -- START util elements
+// =============================================================================
+// §13  Elements — Alignment & Utility
+// =============================================================================
 
 ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element) {
     return apply_element_modifier(element, [](ftxui::Element el) {
@@ -689,6 +855,16 @@ ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_directi
     return create_element_wrapper(ftxui::gaugeDirection(static_cast<float>(value), dir));
 }
 
+ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata) {
+    if (!callback) return nullptr;
+    auto graph_fn = [callback, userdata](int width, int height) -> std::vector<int> {
+        std::vector<int> output(width, 0);
+        callback(width, height, output.data(), userdata);
+        return output;
+    };
+    return create_element_wrapper(ftxui::graph(graph_fn));
+}
+
 ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count) {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
@@ -724,6 +900,47 @@ ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int
     }
     return create_element_wrapper(ftxui::vflow(std::move(children)));
 }
+
+ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count) {
+    std::vector<std::vector<ftxui::Element>> rows;
+    int idx = 0;
+    for (int r = 0; r < row_count; r++) {
+        std::vector<ftxui::Element> row;
+        for (int c = 0; c < row_lengths[r]; c++) {
+            auto* w = static_cast<FTXUIElementWrapper*>(cells[idx++]);
+            row.push_back(std::move(w->element));
+            delete w;
+        }
+        rows.push_back(std::move(row));
+    }
+    return create_element_wrapper(ftxui::gridbox(std::move(rows)));
+}
+
+ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config) {
+    ftxui::Elements elems;
+    for (int i = 0; i < count; i++) {
+        auto* w = static_cast<FTXUIElementWrapper*>(elements[i]);
+        if (w) {
+            elems.push_back(std::move(w->element));
+            delete w;
+        }
+    }
+
+    ftxui::FlexboxConfig ftx_config;
+    ftx_config.direction = static_cast<ftxui::FlexboxConfig::Direction>(config.direction);
+    ftx_config.wrap = static_cast<ftxui::FlexboxConfig::Wrap>(config.wrap);
+    ftx_config.justify_content = static_cast<ftxui::FlexboxConfig::JustifyContent>(config.justify_content);
+    ftx_config.align_items = static_cast<ftxui::FlexboxConfig::AlignItems>(config.align_items);
+    ftx_config.align_content = static_cast<ftxui::FlexboxConfig::AlignContent>(config.align_content);
+    ftx_config.gap_x = config.gap_x;
+    ftx_config.gap_y = config.gap_y;
+
+    return create_element_wrapper(ftxui::flexbox(std::move(elems), ftx_config));
+}
+
+// =============================================================================
+// §11  Elements — Flex / Size
+// =============================================================================
 
 ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element) {
     return apply_element_modifier(element, [](ftxui::Element el) {
@@ -960,43 +1177,6 @@ ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handl
 
 // -- END additional elements
 
-ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type) {
-    switch (type) {
-        case FTXUI_EASING_LINEAR: return ftxui::animation::easing::Linear;
-        case FTXUI_EASING_QUADRATIC_IN: return ftxui::animation::easing::QuadraticIn;
-        case FTXUI_EASING_QUADRATIC_OUT: return ftxui::animation::easing::QuadraticOut;
-        case FTXUI_EASING_QUADRATIC_IN_OUT: return ftxui::animation::easing::QuadraticInOut;
-        case FTXUI_EASING_CUBIC_IN: return ftxui::animation::easing::CubicIn;
-        case FTXUI_EASING_CUBIC_OUT: return ftxui::animation::easing::CubicOut;
-        case FTXUI_EASING_CUBIC_IN_OUT: return ftxui::animation::easing::CubicInOut;
-        case FTXUI_EASING_QUARTIC_IN: return ftxui::animation::easing::QuarticIn;
-        case FTXUI_EASING_QUARTIC_OUT: return ftxui::animation::easing::QuarticOut;
-        case FTXUI_EASING_QUARTIC_IN_OUT: return ftxui::animation::easing::QuarticInOut;
-        case FTXUI_EASING_QUINTIC_IN: return ftxui::animation::easing::QuinticIn;
-        case FTXUI_EASING_QUINTIC_OUT: return ftxui::animation::easing::QuinticOut;
-        case FTXUI_EASING_QUINTIC_IN_OUT: return ftxui::animation::easing::QuinticInOut;
-        case FTXUI_EASING_SINE_IN: return ftxui::animation::easing::SineIn;
-        case FTXUI_EASING_SINE_OUT: return ftxui::animation::easing::SineOut;
-        case FTXUI_EASING_SINE_IN_OUT: return ftxui::animation::easing::SineInOut;
-        case FTXUI_EASING_CIRCULAR_IN: return ftxui::animation::easing::CircularIn;
-        case FTXUI_EASING_CIRCULAR_OUT: return ftxui::animation::easing::CircularOut;
-        case FTXUI_EASING_CIRCULAR_IN_OUT: return ftxui::animation::easing::CircularInOut;
-        case FTXUI_EASING_EXPONENTIAL_IN: return ftxui::animation::easing::ExponentialIn;
-        case FTXUI_EASING_EXPONENTIAL_OUT: return ftxui::animation::easing::ExponentialOut;
-        case FTXUI_EASING_EXPONENTIAL_IN_OUT: return ftxui::animation::easing::ExponentialInOut;
-        case FTXUI_EASING_ELASTIC_IN: return ftxui::animation::easing::ElasticIn;
-        case FTXUI_EASING_ELASTIC_OUT: return ftxui::animation::easing::ElasticOut;
-        case FTXUI_EASING_ELASTIC_IN_OUT: return ftxui::animation::easing::ElasticInOut;
-        case FTXUI_EASING_BACK_IN: return ftxui::animation::easing::BackIn;
-        case FTXUI_EASING_BACK_OUT: return ftxui::animation::easing::BackOut;
-        case FTXUI_EASING_BACK_IN_OUT: return ftxui::animation::easing::BackInOut;
-        case FTXUI_EASING_BOUNCE_IN: return ftxui::animation::easing::BounceIn;
-        case FTXUI_EASING_BOUNCE_OUT: return ftxui::animation::easing::BounceOut;
-        case FTXUI_EASING_BOUNCE_IN_OUT: return ftxui::animation::easing::BounceInOut;
-        default: return ftxui::animation::easing::Linear; // Default to Linear
-    }
-}
-
 static ftxui::AnimatedColorOption to_ftxui_animated_color_option(ftxui_animated_color_option_t option) {
     ftxui::AnimatedColorOption res;
     res.enabled = option.enabled;
@@ -1064,6 +1244,10 @@ static ftxui::ButtonOption to_ftxui_button_option(ftxui_button_option_t option) 
 
     return res;
 }
+
+// =============================================================================
+// §17  Components — Basic
+// =============================================================================
 
 ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata) {
     auto* wrapper = new FTXUIComponentWrapper();
@@ -1377,6 +1561,124 @@ ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int coun
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::SliderOption<int> opt;
+    opt.value = value;
+    opt.min = min;
+    opt.max = max;
+    opt.increment = increment;
+    opt.direction = to_ftxui_direction(direction);
+    wrapper->component = ftxui::Slider(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Slider(label ? label : "", value, min, max, increment);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::SliderOption<float> opt;
+    opt.value = value;
+    opt.min = min;
+    opt.max = max;
+    opt.increment = increment;
+    opt.direction = to_ftxui_direction(direction);
+    if (color_active) opt.color_active = *static_cast<ftxui::Color*>(color_active);
+    if (color_inactive) opt.color_inactive = *static_cast<ftxui::Color*>(color_inactive);
+    wrapper->component = ftxui::Slider(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    std::vector<std::string> v;
+    for (int i = 0; i < count; ++i) v.push_back(entries[i]);
+    wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Horizontal());
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::MenuEntryOption opt;
+    opt.animated_colors = to_ftxui_animated_colors(animated_colors);
+    wrapper->component = ftxui::MenuEntry(label ? label : "", opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected) {
+    std::vector<std::string> v;
+    for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::HorizontalAnimated());
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected) {
+    std::vector<std::string> v;
+    for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Toggle());
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_dropdown_custom(
+    const char** entries, int count, int* selected,
+    ftxui_dropdown_transform_callback_t transform, void* transform_userdata,
+    ftxui_button_transform_t entry_transform, void* entry_transform_userdata
+) {
+    std::vector<std::string> v;
+    for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
+
+    ftxui::DropdownOption opt;
+    opt.radiobox.entries = std::move(v);
+    if (selected) opt.radiobox.selected = selected;
+
+    if (transform) {
+        opt.transform = [transform, transform_userdata](bool open, ftxui::Element checkbox, ftxui::Element radiobox) -> ftxui::Element {
+            auto* cb = new FTXUIElementWrapper();
+            cb->element = checkbox;
+            auto* rb = new FTXUIElementWrapper();
+            rb->element = radiobox;
+
+            ftxui_element_handle_t result_h = transform(
+                open,
+                static_cast<ftxui_element_handle_t>(cb),
+                static_cast<ftxui_element_handle_t>(rb),
+                transform_userdata
+            );
+
+            auto* rw = static_cast<FTXUIElementWrapper*>(result_h);
+            ftxui::Element result = std::move(rw->element);
+            delete rw;
+            return result;
+        };
+    }
+
+    if (entry_transform) {
+        opt.radiobox.transform = [entry_transform, entry_transform_userdata](const ftxui::EntryState& state) -> ftxui::Element {
+            ftxui_entry_state_t c_state = to_ftxui_c_entry_state(state);
+            ftxui_element_handle_t h = entry_transform(c_state, entry_transform_userdata);
+            if (!h) return ftxui::text(state.label);
+            auto* w = static_cast<FTXUIElementWrapper*>(h);
+            ftxui::Element el = std::move(w->element);
+            delete w;
+            return el;
+        };
+    }
+
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Dropdown(std::move(opt));
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+// =============================================================================
+// §18  Components — Containers
+// =============================================================================
+
 ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
@@ -1501,6 +1803,92 @@ static ftxui_component_handle_t apply_component_modifier(ftxui_component_handle_
     return static_cast<ftxui_component_handle_t>(new_wrapper);
 }
 
+ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata) {
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Renderer([callback, userdata](bool focused) {
+        ftxui_element_handle_t h = callback(focused, userdata);
+        ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(h)->element);
+        ftxui_element_destroy(h);
+        return el;
+    });
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata) {
+    auto* inner = static_cast<FTXUIComponentWrapper*>(component);
+    ftxui::Component inner_comp = inner->component;
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Renderer(inner_comp, [callback, userdata, inner_comp]() {
+        ftxui::Element inner_el = inner_comp->Render();
+        auto* ew = new FTXUIElementWrapper();
+        ew->element = std::move(inner_el);
+        ftxui_element_handle_t inner_h = static_cast<ftxui_element_handle_t>(ew);
+        ftxui_element_handle_t result_h = callback(inner_h, userdata);
+        ftxui::Element result = std::move(static_cast<FTXUIElementWrapper*>(result_h)->element);
+        delete static_cast<FTXUIElementWrapper*>(result_h);
+        return result;
+    });
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option) {
+    auto* main_w = static_cast<FTXUIComponentWrapper*>(option.main);
+    auto* back_w = static_cast<FTXUIComponentWrapper*>(option.back);
+    auto* wrapper = new FTXUIComponentWrapper();
+    ftxui::ResizableSplitOption opt;
+    opt.main = main_w->component;
+    opt.back = back_w->component;
+    opt.direction = to_ftxui_direction(option.direction);
+    opt.main_size = option.main_size;
+    if (option.min_size) opt.min = option.min_size;
+    if (option.max_size) opt.max = option.max_size;
+    if (option.separator_func) {
+        auto func = option.separator_func;
+        auto userdata = option.separator_userdata;
+        opt.separator_func = [func, userdata]() -> ftxui::Element {
+            auto* w = static_cast<FTXUIElementWrapper*>(func(userdata));
+            auto elem = std::move(w->element);
+            delete w;
+            return elem;
+        };
+    }
+    wrapper->component = ftxui::ResizableSplit(opt);
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) {
+    auto* win_wrapper = new FTXUIWindowWrapper();
+    if (options.title) win_wrapper->title = options.title;
+
+    ftxui::WindowOptions win_opts;
+    if (options.inner) {
+        auto* inner = static_cast<FTXUIComponentWrapper*>(options.inner);
+        win_opts.inner = inner->component;
+    }
+    win_opts.title = win_wrapper->title;
+
+    if (options.left) win_opts.left = options.left;
+    else win_opts.left = options.left_default;
+    if (options.top) win_opts.top = options.top;
+    else win_opts.top = options.top_default;
+    if (options.width) win_opts.width = options.width;
+    else win_opts.width = options.width_default;
+    if (options.height) win_opts.height = options.height;
+    else win_opts.height = options.height_default;
+
+    win_wrapper->component = ftxui::Window(win_opts);
+
+    // Wrap in a component wrapper that owns the FTXUIWindowWrapper via shared_ptr.
+    auto win_wrapper_shared = std::shared_ptr<FTXUIWindowWrapper>(win_wrapper);
+    auto* wrapper = new FTXUIComponentWrapper();
+    wrapper->component = ftxui::Renderer(win_wrapper->component,
+        [win_wrapper_shared] { return win_wrapper_shared->component->Render(); });
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+// =============================================================================
+// §20  Component Decorators
+// =============================================================================
 
 ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component) {
     return apply_component_modifier(component, [](ftxui::Element el) {
@@ -1661,27 +2049,9 @@ ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t co
     });
 }
 
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer([on_poll, userdata] {
-        if (on_poll) on_poll(userdata);
-        return ftxui::text("");
-    });
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Direction helper ---
-static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
-    switch (d) {
-        case FTXUI_DIRECTION_UP: return ftxui::Direction::Up;
-        case FTXUI_DIRECTION_DOWN: return ftxui::Direction::Down;
-        case FTXUI_DIRECTION_LEFT: return ftxui::Direction::Left;
-        case FTXUI_DIRECTION_RIGHT: return ftxui::Direction::Right;
-        default: return ftxui::Direction::Right;
-    }
-}
-
-// --- Events ---
+// =============================================================================
+// §21  Events  (ftxui/component/event.hpp)
+// =============================================================================
 const char* ftxui_event_input(ftxui_event_handle_t event) {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w ? w->event.input().c_str() : nullptr;
@@ -1909,6 +2279,48 @@ ftxui_event_handle_t ftxui_event_alt_char(char c) {
         default:  return nullptr;
     }
 }
+
+// =============================================================================
+// §22  Animation  (ftxui/component/animation.hpp)
+// =============================================================================
+
+ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type) {
+    switch (type) {
+        case FTXUI_EASING_LINEAR: return ftxui::animation::easing::Linear;
+        case FTXUI_EASING_QUADRATIC_IN: return ftxui::animation::easing::QuadraticIn;
+        case FTXUI_EASING_QUADRATIC_OUT: return ftxui::animation::easing::QuadraticOut;
+        case FTXUI_EASING_QUADRATIC_IN_OUT: return ftxui::animation::easing::QuadraticInOut;
+        case FTXUI_EASING_CUBIC_IN: return ftxui::animation::easing::CubicIn;
+        case FTXUI_EASING_CUBIC_OUT: return ftxui::animation::easing::CubicOut;
+        case FTXUI_EASING_CUBIC_IN_OUT: return ftxui::animation::easing::CubicInOut;
+        case FTXUI_EASING_QUARTIC_IN: return ftxui::animation::easing::QuarticIn;
+        case FTXUI_EASING_QUARTIC_OUT: return ftxui::animation::easing::QuarticOut;
+        case FTXUI_EASING_QUARTIC_IN_OUT: return ftxui::animation::easing::QuarticInOut;
+        case FTXUI_EASING_QUINTIC_IN: return ftxui::animation::easing::QuinticIn;
+        case FTXUI_EASING_QUINTIC_OUT: return ftxui::animation::easing::QuinticOut;
+        case FTXUI_EASING_QUINTIC_IN_OUT: return ftxui::animation::easing::QuinticInOut;
+        case FTXUI_EASING_SINE_IN: return ftxui::animation::easing::SineIn;
+        case FTXUI_EASING_SINE_OUT: return ftxui::animation::easing::SineOut;
+        case FTXUI_EASING_SINE_IN_OUT: return ftxui::animation::easing::SineInOut;
+        case FTXUI_EASING_CIRCULAR_IN: return ftxui::animation::easing::CircularIn;
+        case FTXUI_EASING_CIRCULAR_OUT: return ftxui::animation::easing::CircularOut;
+        case FTXUI_EASING_CIRCULAR_IN_OUT: return ftxui::animation::easing::CircularInOut;
+        case FTXUI_EASING_EXPONENTIAL_IN: return ftxui::animation::easing::ExponentialIn;
+        case FTXUI_EASING_EXPONENTIAL_OUT: return ftxui::animation::easing::ExponentialOut;
+        case FTXUI_EASING_EXPONENTIAL_IN_OUT: return ftxui::animation::easing::ExponentialInOut;
+        case FTXUI_EASING_ELASTIC_IN: return ftxui::animation::easing::ElasticIn;
+        case FTXUI_EASING_ELASTIC_OUT: return ftxui::animation::easing::ElasticOut;
+        case FTXUI_EASING_ELASTIC_IN_OUT: return ftxui::animation::easing::ElasticInOut;
+        case FTXUI_EASING_BACK_IN: return ftxui::animation::easing::BackIn;
+        case FTXUI_EASING_BACK_OUT: return ftxui::animation::easing::BackOut;
+        case FTXUI_EASING_BACK_IN_OUT: return ftxui::animation::easing::BackInOut;
+        case FTXUI_EASING_BOUNCE_IN: return ftxui::animation::easing::BounceIn;
+        case FTXUI_EASING_BOUNCE_OUT: return ftxui::animation::easing::BounceOut;
+        case FTXUI_EASING_BOUNCE_IN_OUT: return ftxui::animation::easing::BounceInOut;
+        default: return ftxui::animation::easing::Linear; // Default to Linear
+    }
+}
+
 ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata) {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
     auto* wrapper = new FTXUIComponentWrapper();
@@ -1921,155 +2333,10 @@ ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t co
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-// --- Focusable renderer ---
-ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer([callback, userdata](bool focused) {
-        ftxui_element_handle_t h = callback(focused, userdata);
-        ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(h)->element);
-        ftxui_element_destroy(h);
-        return el;
-    });
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
+// =============================================================================
+// §14  Canvas  (ftxui/dom/canvas.hpp)
+// =============================================================================
 
-// --- Component render decorator ---
-ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata) {
-    auto* inner = static_cast<FTXUIComponentWrapper*>(component);
-    ftxui::Component inner_comp = inner->component;
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer(inner_comp, [callback, userdata, inner_comp]() {
-        ftxui::Element inner_el = inner_comp->Render();
-        auto* ew = new FTXUIElementWrapper();
-        ew->element = std::move(inner_el);
-        ftxui_element_handle_t inner_h = static_cast<ftxui_element_handle_t>(ew);
-        ftxui_element_handle_t result_h = callback(inner_h, userdata);
-        ftxui::Element result = std::move(static_cast<FTXUIElementWrapper*>(result_h)->element);
-        delete static_cast<FTXUIElementWrapper*>(result_h);
-        return result;
-    });
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Directional int slider ---
-ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    ftxui::SliderOption<int> opt;
-    opt.value = value;
-    opt.min = min;
-    opt.max = max;
-    opt.increment = increment;
-    opt.direction = to_ftxui_direction(direction);
-    wrapper->component = ftxui::Slider(opt);
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Float sliders ---
-ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Slider(label ? label : "", value, min, max, increment);
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    ftxui::SliderOption<float> opt;
-    opt.value = value;
-    opt.min = min;
-    opt.max = max;
-    opt.increment = increment;
-    opt.direction = to_ftxui_direction(direction);
-    if (color_active) opt.color_active = *static_cast<ftxui::Color*>(color_active);
-    if (color_inactive) opt.color_inactive = *static_cast<ftxui::Color*>(color_inactive);
-    wrapper->component = ftxui::Slider(opt);
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Horizontal menu ---
-ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    std::vector<std::string> v;
-    for (int i = 0; i < count; ++i) v.push_back(entries[i]);
-    wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Horizontal());
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- ResizableSplit with options ---
-ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option) {
-    auto* main_w = static_cast<FTXUIComponentWrapper*>(option.main);
-    auto* back_w = static_cast<FTXUIComponentWrapper*>(option.back);
-    auto* wrapper = new FTXUIComponentWrapper();
-    ftxui::ResizableSplitOption opt;
-    opt.main = main_w->component;
-    opt.back = back_w->component;
-    opt.direction = to_ftxui_direction(option.direction);
-    opt.main_size = option.main_size;
-    if (option.min_size) opt.min = option.min_size;
-    if (option.max_size) opt.max = option.max_size;
-    if (option.separator_func) {
-        auto func = option.separator_func;
-        auto userdata = option.separator_userdata;
-        opt.separator_func = [func, userdata]() -> ftxui::Element {
-            auto* w = static_cast<FTXUIElementWrapper*>(func(userdata));
-            auto elem = std::move(w->element);
-            delete w;
-            return elem;
-        };
-    }
-    wrapper->component = ftxui::ResizableSplit(opt);
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Gridbox element ---
-ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count) {
-    std::vector<std::vector<ftxui::Element>> rows;
-    int idx = 0;
-    for (int r = 0; r < row_count; r++) {
-        std::vector<ftxui::Element> row;
-        for (int c = 0; c < row_lengths[r]; c++) {
-            auto* w = static_cast<FTXUIElementWrapper*>(cells[idx++]);
-            row.push_back(std::move(w->element));
-            delete w;
-        }
-        rows.push_back(std::move(row));
-    }
-    return create_element_wrapper(ftxui::gridbox(std::move(rows)));
-}
-
-// --- MenuEntry with animated colors ---
-ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    ftxui::MenuEntryOption opt;
-    opt.animated_colors = to_ftxui_animated_colors(animated_colors);
-    wrapper->component = ftxui::MenuEntry(label ? label : "", opt);
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Animated horizontal menu ---
-ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected) {
-    std::vector<std::string> v;
-    for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::HorizontalAnimated());
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected) {
-    std::vector<std::string> v;
-    for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Toggle());
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- RequestAnimationFrame ---
-void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
-    auto* ftxui_app = static_cast<ftxui::App*>(app);
-    if (ftxui_app) {
-        ftxui_app->RequestAnimationFrame();
-    }
-}
-
-// --- Canvas ---
 #include <ftxui/dom/canvas.hpp>
 
 ftxui_canvas_handle_t ftxui_canvas_create(int width, int height) {
@@ -2372,85 +2639,11 @@ ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) {
     return create_element_wrapper(ftxui::canvas(std::move(copy)));
 }
 
-// --- graph element ---
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata) {
-    if (!callback) return nullptr;
-    auto graph_fn = [callback, userdata](int width, int height) -> std::vector<int> {
-        std::vector<int> output(width, 0);
-        callback(width, height, output.data(), userdata);
-        return output;
-    };
-    return create_element_wrapper(ftxui::graph(graph_fn));
-}
 
-// --- LinearGradient ---
-#include <ftxui/dom/linear_gradient.hpp>
+// =============================================================================
+// §15  Table  (ftxui/dom/table.hpp)
+// =============================================================================
 
-ftxui_linear_gradient_handle_t ftxui_linear_gradient_create() {
-    return static_cast<ftxui_linear_gradient_handle_t>(new ftxui::LinearGradient());
-}
-
-void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient) {
-    delete static_cast<ftxui::LinearGradient*>(gradient);
-}
-
-void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle) {
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    if (g) g->Angle(angle);
-}
-
-void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color) {
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (g && col) g->Stop(*col);
-}
-
-void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position) {
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (g && col) g->Stop(*col, position);
-}
-
-ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
-    auto* ew = static_cast<FTXUIElementWrapper*>(element);
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    if (!ew || !g) return nullptr;
-    return create_element_wrapper(ew->element | ftxui::bgcolor(*g));
-}
-
-ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
-    auto* ew = static_cast<FTXUIElementWrapper*>(element);
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    if (!ew || !g) return nullptr;
-    return create_element_wrapper(ew->element | ftxui::color(*g));
-}
-
-// --- flexbox element ---
-#include <ftxui/dom/flexbox_config.hpp>
-
-ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config) {
-    ftxui::Elements elems;
-    for (int i = 0; i < count; i++) {
-        auto* w = static_cast<FTXUIElementWrapper*>(elements[i]);
-        if (w) {
-            elems.push_back(std::move(w->element));
-            delete w;
-        }
-    }
-
-    ftxui::FlexboxConfig ftx_config;
-    ftx_config.direction = static_cast<ftxui::FlexboxConfig::Direction>(config.direction);
-    ftx_config.wrap = static_cast<ftxui::FlexboxConfig::Wrap>(config.wrap);
-    ftx_config.justify_content = static_cast<ftxui::FlexboxConfig::JustifyContent>(config.justify_content);
-    ftx_config.align_items = static_cast<ftxui::FlexboxConfig::AlignItems>(config.align_items);
-    ftx_config.align_content = static_cast<ftxui::FlexboxConfig::AlignContent>(config.align_content);
-    ftx_config.gap_x = config.gap_x;
-    ftx_config.gap_y = config.gap_y;
-
-    return create_element_wrapper(ftxui::flexbox(std::move(elems), ftx_config));
-}
-
-// --- Table ---
 #include <ftxui/dom/table.hpp>
 
 struct FTXUITableWrapper {
@@ -2496,6 +2689,10 @@ static ftxui::BorderStyle to_ftxui_border_style(ftxui_border_style_t style) {
         default: return ftxui::LIGHT;
     }
 }
+
+// =============================================================================
+// §16  Table Selection
+// =============================================================================
 
 ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table) {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
@@ -2701,46 +2898,9 @@ void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection
     if (sw && cb) sw->selection.DecorateCellsAlternateColumn(make_decorator(cb, userdata), modulo, shift);
 }
 
-// --- Window component ---
-#include <ftxui/component/component_options.hpp>
-
-struct FTXUIWindowWrapper {
-    std::string title;              // kept alive for the ConstStringRef
-    ftxui::Component component;
-};
-
-ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) {
-    auto* win_wrapper = new FTXUIWindowWrapper();
-    if (options.title) win_wrapper->title = options.title;
-
-    ftxui::WindowOptions win_opts;
-    if (options.inner) {
-        auto* inner = static_cast<FTXUIComponentWrapper*>(options.inner);
-        win_opts.inner = inner->component;
-    }
-    win_opts.title = win_wrapper->title;
-
-    if (options.left) win_opts.left = options.left;
-    else win_opts.left = options.left_default;
-    if (options.top) win_opts.top = options.top;
-    else win_opts.top = options.top_default;
-    if (options.width) win_opts.width = options.width;
-    else win_opts.width = options.width_default;
-    if (options.height) win_opts.height = options.height;
-    else win_opts.height = options.height_default;
-
-    win_wrapper->component = ftxui::Window(win_opts);
-
-    // Wrap in a component wrapper that owns the FTXUIWindowWrapper via shared_ptr.
-    auto win_wrapper_shared = std::shared_ptr<FTXUIWindowWrapper>(win_wrapper);
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer(win_wrapper->component,
-        [win_wrapper_shared] { return win_wrapper_shared->component->Render(); });
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// --- Loop ---
-#include <ftxui/component/loop.hpp>
+// =============================================================================
+// §3  Loop  (ftxui/component/loop.hpp)
+// =============================================================================
 
 struct FTXUILoopWrapper {
     ftxui::Loop loop;
@@ -2774,120 +2934,23 @@ void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
     delete static_cast<FTXUILoopWrapper*>(loop);
 }
 
-// --- ColorInfo ---
-#include <ftxui/screen/color_info.hpp>
-#include <algorithm>
-
-static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
-    ftxui_color_info_t r;
-    r.index_256  = info.index_256;
-    r.index_16   = info.index_16;
-    r.name       = info.name;
-    r.red        = info.red;
-    r.green      = info.green;
-    r.blue       = info.blue;
-    r.hue        = info.hue;
-    r.saturation = info.saturation;
-    r.value      = info.value;
-    return r;
-}
-
-static const ftxui_color_info_t k_padding_entry = {-1, 0, "", 0, 0, 0, 0, 0, 0};
-
-ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
-    auto info_columns = ftxui::ColorInfoSorted2D();
-    int rows = static_cast<int>(info_columns.size());
-    int cols = 0;
-    for (auto& col : info_columns) {
-        cols = std::max(cols, static_cast<int>(col.size()));
-    }
-    *num_rows = rows;
-    *max_cols = cols;
-    if (rows == 0 || cols == 0) return nullptr;
-
-    auto* result = new ftxui_color_info_t[rows * cols];
-    for (int r = 0; r < rows; r++) {
-        for (int c = 0; c < cols; c++) {
-            int idx = r * cols + c;
-            if (c < static_cast<int>(info_columns[r].size())) {
-                result[idx] = to_c_color_info(info_columns[r][c]);
-            } else {
-                result[idx] = k_padding_entry;
-            }
-        }
-    }
-    return result;
-}
-
-void ftxui_color_info_free(ftxui_color_info_t* data) {
-    delete[] data;
-}
-
-ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) {
-    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette256)index));
-}
-
-ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) {
-    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette16)index));
-}
-
-// --- Dropdown with custom transform ---
-#include <ftxui/component/component_options.hpp>
-
-ftxui_component_handle_t ftxui_component_dropdown_custom(
-    const char** entries, int count, int* selected,
-    ftxui_dropdown_transform_callback_t transform, void* transform_userdata,
-    ftxui_button_transform_t entry_transform, void* entry_transform_userdata
-) {
-    std::vector<std::string> v;
-    for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
-
-    ftxui::DropdownOption opt;
-    opt.radiobox.entries = std::move(v);
-    if (selected) opt.radiobox.selected = selected;
-
-    if (transform) {
-        opt.transform = [transform, transform_userdata](bool open, ftxui::Element checkbox, ftxui::Element radiobox) -> ftxui::Element {
-            // Copy the shared_ptrs so FTXUI's own references remain intact.
-            auto* cb = new FTXUIElementWrapper();
-            cb->element = checkbox;
-            auto* rb = new FTXUIElementWrapper();
-            rb->element = radiobox;
-
-            ftxui_element_handle_t result_h = transform(
-                open,
-                static_cast<ftxui_element_handle_t>(cb),
-                static_cast<ftxui_element_handle_t>(rb),
-                transform_userdata
-            );
-            // cb/rb are consumed by Kotlin element combinators (which delete wrappers).
-            // Do NOT free them here.
-
-            auto* rw = static_cast<FTXUIElementWrapper*>(result_h);
-            ftxui::Element result = std::move(rw->element);
-            delete rw;
-            return result;
-        };
-    }
-
-    if (entry_transform) {
-        opt.radiobox.transform = [entry_transform, entry_transform_userdata](const ftxui::EntryState& state) -> ftxui::Element {
-            ftxui_entry_state_t c_state = to_ftxui_c_entry_state(state);
-            ftxui_element_handle_t h = entry_transform(c_state, entry_transform_userdata);
-            if (!h) return ftxui::text(state.label);
-            auto* w = static_cast<FTXUIElementWrapper*>(h);
-            ftxui::Element el = std::move(w->element);
-            delete w;
-            return el;
-        };
-    }
-
+ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata) {
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Dropdown(std::move(opt));
+    wrapper->component = ftxui::Renderer([on_poll, userdata] {
+        if (on_poll) on_poll(userdata);
+        return ftxui::text("");
+    });
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-// --- Cell style / selectionStyle ---
+void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
+    auto* ftxui_app = static_cast<ftxui::App*>(app);
+    if (ftxui_app) {
+        ftxui_app->RequestAnimationFrame();
+    }
+}
+
+// --- selection style decorator ---
 #include <ftxui/screen/cell.hpp>
 
 ftxui_element_handle_t ftxui_element_selection_style(
@@ -2901,16 +2964,3 @@ ftxui_element_handle_t ftxui_element_selection_style(
     });
 }
 
-// --- App selection ---
-void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
-    auto* ftxui_app = static_cast<ftxui::App*>(app);
-    if (ftxui_app && callback) {
-        ftxui_app->SelectionChange([callback, userdata] { callback(userdata); });
-    }
-}
-
-char* ftxui_app_get_selection(ftxui_app_handle_t app) {
-    auto* ftxui_app = static_cast<ftxui::App*>(app);
-    if (!ftxui_app) return strdup("");
-    return strdup(ftxui_app->GetSelection().c_str());
-}

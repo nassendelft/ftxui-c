@@ -16,18 +16,255 @@ typedef void* ftxui_color_handle_t;
 typedef void* ftxui_captured_mouse_handle_t;
 typedef void* ftxui_event_handle_t;
 
-/**
- * @brief A callback function for rendering a component.
- * 
- * @return ftxui_element_handle_t The element to render.
- */
 typedef ftxui_element_handle_t (*ftxui_render_callback_t)(void* userdata);
 typedef void (*ftxui_callback_t)(void* userdata);
 typedef bool (*ftxui_predicate_callback_t)(void* userdata);
 
-// --- Colors ---
+// =============================================================================
+// Forward-declared types  (used by earlier sections than their logical home)
+// =============================================================================
+// ftxui_easing_function_t and ftxui_easing_function_type_t belong to §22
+// but are needed here because ftxui_animated_color_option_t in §17 references them.
+// ftxui_border_style_t belongs to §8 but is needed in §10, §15, and §16.
 
-// C Enums for FTXUI Color Palettes
+typedef float (*ftxui_easing_function_t)(float progress);
+
+typedef enum {
+    FTXUI_EASING_LINEAR,
+    FTXUI_EASING_QUADRATIC_IN,
+    FTXUI_EASING_QUADRATIC_OUT,
+    FTXUI_EASING_QUADRATIC_IN_OUT,
+    FTXUI_EASING_CUBIC_IN,
+    FTXUI_EASING_CUBIC_OUT,
+    FTXUI_EASING_CUBIC_IN_OUT,
+    FTXUI_EASING_QUARTIC_IN,
+    FTXUI_EASING_QUARTIC_OUT,
+    FTXUI_EASING_QUARTIC_IN_OUT,
+    FTXUI_EASING_QUINTIC_IN,
+    FTXUI_EASING_QUINTIC_OUT,
+    FTXUI_EASING_QUINTIC_IN_OUT,
+    FTXUI_EASING_SINE_IN,
+    FTXUI_EASING_SINE_OUT,
+    FTXUI_EASING_SINE_IN_OUT,
+    FTXUI_EASING_CIRCULAR_IN,
+    FTXUI_EASING_CIRCULAR_OUT,
+    FTXUI_EASING_CIRCULAR_IN_OUT,
+    FTXUI_EASING_EXPONENTIAL_IN,
+    FTXUI_EASING_EXPONENTIAL_OUT,
+    FTXUI_EASING_EXPONENTIAL_IN_OUT,
+    FTXUI_EASING_ELASTIC_IN,
+    FTXUI_EASING_ELASTIC_OUT,
+    FTXUI_EASING_ELASTIC_IN_OUT,
+    FTXUI_EASING_BACK_IN,
+    FTXUI_EASING_BACK_OUT,
+    FTXUI_EASING_BACK_IN_OUT,
+    FTXUI_EASING_BOUNCE_IN,
+    FTXUI_EASING_BOUNCE_OUT,
+    FTXUI_EASING_BOUNCE_IN_OUT,
+} ftxui_easing_function_type_t;
+
+typedef enum {
+    FTXUI_BORDER_STYLE_LIGHT,
+    FTXUI_BORDER_STYLE_DASHED,
+    FTXUI_BORDER_STYLE_HEAVY,
+    FTXUI_BORDER_STYLE_DOUBLE,
+    FTXUI_BORDER_STYLE_ROUNDED,
+    FTXUI_BORDER_STYLE_EMPTY,
+} ftxui_border_style_t;
+
+// =============================================================================
+// §1  App  (ftxui/component/app.hpp)
+// =============================================================================
+
+ftxui_app_handle_t ftxui_app_create_fullscreen();
+ftxui_app_handle_t ftxui_app_create_fit_component();
+ftxui_app_handle_t ftxui_app_create_terminal_output();
+ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h);
+ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen();
+ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen();
+
+void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component);
+void ftxui_app_exit(ftxui_app_handle_t app);
+void ftxui_app_destroy(ftxui_app_handle_t app);
+
+// --- App Configuration (call before ftxui_app_loop) ---
+
+/**
+ * @brief Enable or disable mouse event tracking. Enabled by default.
+ */
+void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable);
+
+/**
+ * @brief Enable or disable automatic piped input handling. Enabled by default.
+ */
+void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable);
+
+/**
+ * @brief Force FTXUI to handle or not handle Ctrl-C regardless of component event handling.
+ */
+void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force);
+
+/**
+ * @brief Force FTXUI to handle or not handle Ctrl-Z regardless of component event handling.
+ */
+void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force);
+
+// --- App Operations ---
+
+/**
+ * @brief Post a closure to be executed on the main loop thread. Safe to call from any thread.
+ */
+void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+
+/**
+ * @brief Post an event to the main loop. The event is copied.
+ */
+void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event);
+
+/**
+ * @brief Execute callback with the terminal temporarily restored to its original state.
+ */
+void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+
+/**
+ * @brief Return the currently active app handle, or NULL if none is running.
+ */
+ftxui_app_handle_t ftxui_app_active();
+
+/**
+ * @brief Request an animation frame; causes the component to re-render.
+ */
+void ftxui_app_request_animation_frame(ftxui_app_handle_t app);
+
+// --- Terminal Info (via App) ---
+
+/**
+ * @brief Return the terminal name. Pointer is valid until the app is destroyed. Do not free.
+ */
+const char* ftxui_app_terminal_name(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal version number.
+ */
+int ftxui_app_terminal_version(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal emulator name. Pointer is valid until the app is destroyed. Do not free.
+ */
+const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal emulator version string. Pointer is valid until the app is destroyed. Do not free.
+ */
+const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app);
+
+/**
+ * @brief Return the terminal capabilities as a malloc'd int array. Sets *count to the number of elements.
+ * The caller must free() the returned pointer. Returns NULL if there are no capabilities.
+ */
+int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count);
+
+// --- Mouse Capture ---
+
+/**
+ * @brief Try to capture the mouse exclusively. Returns NULL if already captured.
+ * Destroy the handle with ftxui_captured_mouse_destroy to release the capture.
+ */
+ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app);
+
+/**
+ * @brief Release a captured mouse handle obtained from ftxui_app_capture_mouse.
+ */
+void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle);
+
+// --- Selection ---
+
+/**
+ * @brief Registers a callback invoked whenever the terminal text selection changes.
+ */
+void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+
+/**
+ * @brief Returns the currently selected text. Caller must free() the returned string.
+ */
+char* ftxui_app_get_selection(ftxui_app_handle_t app);
+
+// =============================================================================
+// §2  Terminal  (ftxui/screen/terminal.hpp)
+// =============================================================================
+
+/**
+ * @brief Terminal color support level, matching ftxui::Terminal::Color.
+ */
+typedef enum {
+    FTXUI_TERMINAL_COLOR_PALETTE1   = 0,
+    FTXUI_TERMINAL_COLOR_PALETTE16  = 1,
+    FTXUI_TERMINAL_COLOR_PALETTE256 = 2,
+    FTXUI_TERMINAL_COLOR_TRUE_COLOR = 3,
+} ftxui_terminal_color_t;
+
+/**
+ * @brief Flat representation of ftxui::Terminal::Quirks.
+ * Retrieve with ftxui_terminal_get_quirks, modify fields, then apply with
+ * ftxui_terminal_set_quirks.
+ */
+typedef struct {
+    bool block_characters;
+    bool cursor_hiding;
+    bool component_ascii;
+    ftxui_terminal_color_t color_support;
+} ftxui_quirks_t;
+
+/**
+ * @brief Returns the current terminal width in columns.
+ */
+int ftxui_terminal_width();
+
+/**
+ * @brief Returns the current terminal height in rows.
+ */
+int ftxui_terminal_height();
+
+/**
+ * @brief Set the fallback terminal size used when auto-detection fails.
+ */
+void ftxui_terminal_set_fallback_size(int w, int h);
+
+/**
+ * @brief Return the global terminal color support level.
+ */
+ftxui_terminal_color_t ftxui_terminal_color_support(void);
+
+/**
+ * @brief Override the global terminal color support level.
+ */
+void ftxui_terminal_set_color_support(ftxui_terminal_color_t color);
+
+/**
+ * @brief Return the current terminal quirks as a flat struct.
+ */
+ftxui_quirks_t ftxui_terminal_get_quirks(void);
+
+/**
+ * @brief Apply terminal quirks from a flat struct.
+ */
+void ftxui_terminal_set_quirks(ftxui_quirks_t quirks);
+
+// =============================================================================
+// §3  Loop  (ftxui/component/loop.hpp)
+// =============================================================================
+
+typedef void* ftxui_loop_handle_t;
+ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component);
+bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop);
+void ftxui_loop_run_once(ftxui_loop_handle_t loop);
+void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop);
+void ftxui_loop_destroy(ftxui_loop_handle_t loop);
+
+// =============================================================================
+// §4  Color  (ftxui/screen/color.hpp)
+// =============================================================================
+
 typedef enum {
   FTXUI_PALETTE1_DEFAULT = 0, // Transparent
 } ftxui_palette1_t;
@@ -295,6 +532,271 @@ typedef enum {
 } ftxui_palette256_t;
 
 /**
+ * @brief Creates a default (transparent) Color object.
+ */
+ftxui_color_handle_t ftxui_color_default();
+/**
+ * @brief Creates a Color object from RGB values.
+ */
+ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b);
+/**
+ * @brief Creates a Color object from RGBA values.
+ */
+ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+/**
+ * @brief Creates a Color object from HSV values (h, s, v each 0-255).
+ */
+ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v);
+/**
+ * @brief Creates a Color object from HSVA values.
+ */
+ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a);
+ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index);
+ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index);
+ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index);
+/**
+ * @brief Creates a Color object from a raw 256-color palette index (0-255).
+ */
+ftxui_color_handle_t ftxui_color_palette256_raw(int index);
+ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b);
+ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+bool ftxui_color_is_opaque(ftxui_color_handle_t color);
+bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+/**
+ * @brief Returns a string representation of the color. The returned string must be freed using free().
+ */
+char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color);
+void ftxui_color_destroy(ftxui_color_handle_t color);
+
+// =============================================================================
+// §5  Color Info  (ftxui/screen/color_info.hpp)
+// =============================================================================
+
+typedef struct {
+    int         index_256;   // -1 for padding entries in ftxui_color_info_sorted_2d
+    uint8_t     index_16;
+    const char* name;
+    uint8_t     red;
+    uint8_t     green;
+    uint8_t     blue;
+    uint8_t     hue;
+    uint8_t     saturation;
+    uint8_t     value;
+} ftxui_color_info_t;
+
+// Returns a flat row-major array of (num_rows * max_cols) entries.
+// Entries with index_256 == -1 are padding.
+// Caller must call ftxui_color_info_free() on the returned pointer.
+ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols);
+void ftxui_color_info_free(ftxui_color_info_t* data);
+
+// Returns color info for a single Palette256 or Palette16 entry by value.
+// The name pointer is valid for the lifetime of the program.
+ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index);
+ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index);
+
+// =============================================================================
+// §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
+// =============================================================================
+
+typedef void* ftxui_linear_gradient_handle_t;
+ftxui_linear_gradient_handle_t ftxui_linear_gradient_create();
+void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient);
+void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle);
+void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color);
+void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position);
+ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
+ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
+
+// =============================================================================
+// §7  Elements — Basic  (ftxui/dom/elements.hpp)
+// =============================================================================
+
+ftxui_element_handle_t ftxui_element_text(const char* text);
+ftxui_element_handle_t ftxui_element_vtext(const char* text);
+ftxui_element_handle_t ftxui_element_paragraph(const char* text);
+ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text);
+ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text);
+ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text);
+ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text);
+ftxui_element_handle_t ftxui_element_empty();
+ftxui_element_handle_t ftxui_element_filler();
+ftxui_element_handle_t ftxui_element_gauge(double value);
+ftxui_element_handle_t ftxui_element_gauge_left(double value);
+ftxui_element_handle_t ftxui_element_gauge_right(double value);
+ftxui_element_handle_t ftxui_element_gauge_up(double value);
+ftxui_element_handle_t ftxui_element_gauge_down(double value);
+
+typedef enum {
+    FTXUI_DIRECTION_UP,
+    FTXUI_DIRECTION_DOWN,
+    FTXUI_DIRECTION_LEFT,
+    FTXUI_DIRECTION_RIGHT,
+} ftxui_direction_t;
+
+ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction);
+ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index);
+
+// The callback fills `output` (pre-allocated array of `width` ints) with graph values [0..height].
+typedef void (*ftxui_graph_callback_t)(int width, int height, int* output, void* userdata);
+ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata);
+
+/**
+ * @brief Wraps an element with a window title bar.
+ */
+ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_element_handle_t element);
+
+void ftxui_element_destroy(ftxui_element_handle_t element);
+
+// =============================================================================
+// §8  Elements — Separators
+// =============================================================================
+// NOTE: ftxui_border_style_t is declared above in the forward-declared types block.
+
+ftxui_element_handle_t ftxui_element_separator();
+ftxui_element_handle_t ftxui_element_separator_light();
+ftxui_element_handle_t ftxui_element_separator_dashed();
+ftxui_element_handle_t ftxui_element_separator_heavy();
+ftxui_element_handle_t ftxui_element_separator_double();
+ftxui_element_handle_t ftxui_element_separator_empty();
+ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style);
+ftxui_element_handle_t ftxui_element_separator_character(const char* character);
+ftxui_element_handle_t ftxui_element_separator_hselector(float left, float right, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
+ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
+
+// =============================================================================
+// §9  Elements — Layout
+// =============================================================================
+
+ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int count);
+ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count);
+ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count);
+ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count);
+ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count);
+// cells: flat row-major array; row_lengths[i] = number of cells in row i
+ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count);
+
+typedef enum {
+    FTXUI_FLEXBOX_DIRECTION_ROW,
+    FTXUI_FLEXBOX_DIRECTION_ROW_INVERSED,
+    FTXUI_FLEXBOX_DIRECTION_COLUMN,
+    FTXUI_FLEXBOX_DIRECTION_COLUMN_INVERSED,
+} ftxui_flexbox_direction_t;
+
+typedef enum {
+    FTXUI_FLEXBOX_WRAP_NO_WRAP,
+    FTXUI_FLEXBOX_WRAP_WRAP,
+    FTXUI_FLEXBOX_WRAP_WRAP_INVERSED,
+} ftxui_flexbox_wrap_t;
+
+typedef enum {
+    FTXUI_FLEXBOX_JUSTIFY_FLEX_START,
+    FTXUI_FLEXBOX_JUSTIFY_FLEX_END,
+    FTXUI_FLEXBOX_JUSTIFY_CENTER,
+    FTXUI_FLEXBOX_JUSTIFY_STRETCH,
+    FTXUI_FLEXBOX_JUSTIFY_SPACE_BETWEEN,
+    FTXUI_FLEXBOX_JUSTIFY_SPACE_AROUND,
+    FTXUI_FLEXBOX_JUSTIFY_SPACE_EVENLY,
+} ftxui_flexbox_justify_t;
+
+typedef enum {
+    FTXUI_FLEXBOX_ALIGN_ITEMS_FLEX_START,
+    FTXUI_FLEXBOX_ALIGN_ITEMS_FLEX_END,
+    FTXUI_FLEXBOX_ALIGN_ITEMS_CENTER,
+    FTXUI_FLEXBOX_ALIGN_ITEMS_STRETCH,
+} ftxui_flexbox_align_items_t;
+
+typedef enum {
+    FTXUI_FLEXBOX_ALIGN_CONTENT_FLEX_START,
+    FTXUI_FLEXBOX_ALIGN_CONTENT_FLEX_END,
+    FTXUI_FLEXBOX_ALIGN_CONTENT_CENTER,
+    FTXUI_FLEXBOX_ALIGN_CONTENT_STRETCH,
+    FTXUI_FLEXBOX_ALIGN_CONTENT_SPACE_BETWEEN,
+    FTXUI_FLEXBOX_ALIGN_CONTENT_SPACE_AROUND,
+    FTXUI_FLEXBOX_ALIGN_CONTENT_SPACE_EVENLY,
+} ftxui_flexbox_align_content_t;
+
+typedef struct {
+    ftxui_flexbox_direction_t direction;
+    ftxui_flexbox_wrap_t wrap;
+    ftxui_flexbox_justify_t justify_content;
+    ftxui_flexbox_align_items_t align_items;
+    ftxui_flexbox_align_content_t align_content;
+    int gap_x;
+    int gap_y;
+} ftxui_flexbox_config_t;
+
+ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config);
+
+// =============================================================================
+// §10  Elements — Styling Decorators
+// =============================================================================
+
+// --- Border decorators ---
+ftxui_element_handle_t ftxui_element_border(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_light(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_dashed(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_heavy(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_double(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_rounded(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t element, ftxui_border_style_t style);
+ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t element, ftxui_border_style_t style, ftxui_color_handle_t color);
+ftxui_element_handle_t ftxui_element_border_colored(ftxui_element_handle_t element, ftxui_color_handle_t color);
+
+// --- Text style decorators ---
+ftxui_element_handle_t ftxui_element_bold(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_italic(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_inverted(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_underlined(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_underlined_double(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element);
+
+// --- Color decorators ---
+ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftxui_color_handle_t color);
+
+// --- Misc decorators ---
+ftxui_element_handle_t ftxui_element_automerge(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_hyperlink(const char* link, ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_clear_under(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element);
+
+// --- Selection style ---
+// Represents the style of a terminal cell. Used by selectionStyle and canvas stylizer callbacks.
+// When used as a canvas stylizer: foreground_color and background_color are temporary handles —
+// the callback may read or replace them (setting to NULL leaves the color unchanged), but must NOT
+// call ftxui_color_destroy() on the handles it receives.
+typedef struct {
+    bool blink;
+    bool bold;
+    bool dim;
+    bool italic;
+    bool inverted;
+    bool underlined;
+    bool underlined_double;
+    bool strikethrough;
+    bool automerge;
+    ftxui_color_handle_t foreground_color;
+    ftxui_color_handle_t background_color;
+} ftxui_cell_t;
+
+typedef void (*ftxui_cell_style_callback_t)(ftxui_cell_t* cell, void* userdata);
+
+ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+ftxui_element_handle_t ftxui_element_selection_style(ftxui_element_handle_t element, ftxui_cell_style_callback_t callback, void* userdata);
+
+// =============================================================================
+// §11  Elements — Flex / Size
+// =============================================================================
+
+/**
  * @brief Specifies whether to apply size constraints to width or height.
  */
 typedef enum {
@@ -311,180 +813,181 @@ typedef enum {
     FTXUI_CONSTRAINT_EQUAL,          ///< The size must be equal to the given value.
 } ftxui_constraint_t;
 
-typedef enum {
-    FTXUI_DIRECTION_UP,
-    FTXUI_DIRECTION_DOWN,
-    FTXUI_DIRECTION_LEFT,
-    FTXUI_DIRECTION_RIGHT,
-} ftxui_direction_t;
+ftxui_element_handle_t ftxui_element_flex(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_flex_shrink(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_xflex(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_xflex_grow(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_xflex_shrink(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_yflex(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_yflex_grow(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_yflex_shrink(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_notflex(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
 
-/**
- * @brief Creates a default (transparent) Color object.
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_default();
+// =============================================================================
+// §12  Elements — Frame / Scroll / Focus
+// =============================================================================
 
-/**
- * @brief Creates a Color object from RGB values.
- * @param r Red component (0-255).
- * @param g Green component (0-255).
- * @param b Blue component (0-255).
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b);
+ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_xframe(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_yframe(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_hscroll_indicator(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_cursor_block(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_cursor_block_blinking(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_cursor_bar(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_cursor_bar_blinking(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y);
+ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
 
-/**
- * @brief Creates a Color object from RGBA values.
- * @param r Red component (0-255).
- * @param g Green component (0-255).
- * @param b Blue component (0-255).
- * @param a Alpha component (0-255).
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+// =============================================================================
+// §13  Elements — Alignment & Utility
+// =============================================================================
 
-/**
- * @brief Creates a Color object from HSV values.
- * @param h Hue component (0-255).
- * @param s Saturation component (0-255).
- * @param v Value component (0-255).
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v);
+ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element);
+ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element);
 
-/**
- * @brief Creates a Color object from HSVA values.
- * @param h Hue component (0-255).
- * @param s Saturation component (0-255).
- * @param v Value component (0-255).
- * @param a Alpha component (0-255).
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a);
+// =============================================================================
+// §14  Canvas  (ftxui/dom/canvas.hpp)
+// =============================================================================
 
-/**
- * @brief Creates a Color object from a 1-bit palette index.
- * @param index The 1-bit palette index.
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index);
+typedef void* ftxui_canvas_handle_t;
+ftxui_canvas_handle_t ftxui_canvas_create(int width, int height);
+void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas);
+int ftxui_canvas_width(ftxui_canvas_handle_t canvas);
+int ftxui_canvas_height(ftxui_canvas_handle_t canvas);
+void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text);
+void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color);
+// Draws text with a stylizer callback. The callback may modify cell style/color fields.
+// The foreground_color and background_color fields in ftxui_cell_t are temporary handles — do NOT free them.
+void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata);
+// Boolean point drawing (braille characters)
+void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value);
+void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
+// Line drawing (color=NULL draws with default color)
+void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
+// Circle drawing — point (braille)
+void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+// Ellipse drawing — point (braille)
+void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+// Boolean block drawing (box characters)
+void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y);
+void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value);
+void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
+// Line drawing — block (color=NULL draws with default color)
+void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
+// Circle drawing — block
+void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+// Ellipse drawing — block
+void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+// Apply a style decorator at a cell position (x must be multiple of 2, y multiple of 4)
+void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata);
+// Creates an element from the canvas. Caller keeps ownership of the canvas handle.
+ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas);
 
-/**
- * @brief Creates a Color object from a 16-bit palette index.
- * @param index The 16-bit palette index.
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index);
+// =============================================================================
+// §15  Table  (ftxui/dom/table.hpp)
+// =============================================================================
 
-/**
- * @brief Creates a Color object from a 256-bit palette index.
- * @param index The 256-bit palette index.
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index);
+typedef void* ftxui_table_handle_t;
+typedef void* ftxui_table_selection_handle_t;
 
-/**
- * @brief Creates a Color object from a raw 256-color palette index (0-255).
- * @param index Raw palette index (0-255).
- * @return A handle to the new Color object.
- */
-ftxui_color_handle_t ftxui_color_palette256_raw(int index);
+// A C-callable decorator: receives an owned element handle, returns a new one.
+// The input handle is consumed by the call — do not free it separately.
+typedef ftxui_element_handle_t (*ftxui_decorator_callback_t)(
+    ftxui_element_handle_t element, void* userdata);
 
-/**
- * @brief Interpolates between two colors.
- * @param t The interpolation factor (0.0 to 1.0).
- * @param a The first color.
- * @param b The second color.
- * @return A handle to the new interpolated Color object.
- */
-ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b);
+// cells is a flat row-major array of (rows * cols) strings
+ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols);
+void ftxui_table_destroy(ftxui_table_handle_t table);
+ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table);
 
-/**
- * @brief Blends two colors.
- * @param lhs The left-hand side color.
- * @param rhs The right-hand side color.
- * @return A handle to the new blended Color object.
- */
-ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+// =============================================================================
+// §16  Table Selection
+// =============================================================================
 
-/**
- * @brief Checks if a color is opaque.
- * @param color The color to check.
- * @return True if the color is opaque, false otherwise.
- */
-bool ftxui_color_is_opaque(ftxui_color_handle_t color);
+ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table);
+ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row);
+ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to);
+ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col);
+ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row);
+ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to);
+ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max);
+void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel);
 
-/**
- * @brief Compares two colors for equality.
- * @param lhs The left-hand side color.
- * @param rhs The right-hand side color.
- * @return True if the colors are equal, false otherwise.
- */
-bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+// Border / separator styling
+void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color);
+void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
 
-/**
- * @brief Compares two colors for inequality.
- * @param lhs The left-hand side color.
- * @param rhs The right-hand side color.
- * @return True if the colors are not equal, false otherwise.
- */
-bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+// Generic decorator callbacks
+void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
+void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
 
-/**
- * @brief Returns a string representation of the color.
- * The returned string must be freed using free().
- * @param color The color object.
- * @param is_background_color True if the color is used as a background color.
- * @return A dynamically allocated string representing the color.
- */
-char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color);
+// Convenience shortcuts
+void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel);
+void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel);
+void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color);
+void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset);
 
-/**
- * @brief Destroys a Color object and frees its memory.
- * @param color The handle to the Color object to destroy.
- */
-void ftxui_color_destroy(ftxui_color_handle_t color);
-
-/**
- * @brief Easing function for animations.
- * @param progress A value between 0.0 and 1.0 representing the animation progress.
- * @return The eased progress value.
- */
-typedef float (*ftxui_easing_function_t)(float progress);
-
-typedef enum {
-    FTXUI_EASING_LINEAR,
-    FTXUI_EASING_QUADRATIC_IN,
-    FTXUI_EASING_QUADRATIC_OUT,
-    FTXUI_EASING_QUADRATIC_IN_OUT,
-    FTXUI_EASING_CUBIC_IN,
-    FTXUI_EASING_CUBIC_OUT,
-    FTXUI_EASING_CUBIC_IN_OUT,
-    FTXUI_EASING_QUARTIC_IN,
-    FTXUI_EASING_QUARTIC_OUT,
-    FTXUI_EASING_QUARTIC_IN_OUT,
-    FTXUI_EASING_QUINTIC_IN,
-    FTXUI_EASING_QUINTIC_OUT,
-    FTXUI_EASING_QUINTIC_IN_OUT,
-    FTXUI_EASING_SINE_IN,
-    FTXUI_EASING_SINE_OUT,
-    FTXUI_EASING_SINE_IN_OUT,
-    FTXUI_EASING_CIRCULAR_IN,
-    FTXUI_EASING_CIRCULAR_OUT,
-    FTXUI_EASING_CIRCULAR_IN_OUT,
-    FTXUI_EASING_EXPONENTIAL_IN,
-    FTXUI_EASING_EXPONENTIAL_OUT,
-    FTXUI_EASING_EXPONENTIAL_IN_OUT,
-    FTXUI_EASING_ELASTIC_IN,
-    FTXUI_EASING_ELASTIC_OUT,
-    FTXUI_EASING_ELASTIC_IN_OUT,
-    FTXUI_EASING_BACK_IN,
-    FTXUI_EASING_BACK_OUT,
-    FTXUI_EASING_BACK_IN_OUT,
-    FTXUI_EASING_BOUNCE_IN,
-    FTXUI_EASING_BOUNCE_OUT,
-    FTXUI_EASING_BOUNCE_IN_OUT,
-} ftxui_easing_function_type_t;
+// =============================================================================
+// §17  Components — Basic
+// =============================================================================
+// NOTE: ftxui_easing_function_t and ftxui_easing_function_type_t are declared
+// above in the forward-declared types block.
 
 typedef struct {
     bool enabled;
@@ -515,670 +1018,26 @@ typedef struct {
     void* transform_userdata;
 } ftxui_button_option_t;
 
-typedef enum {
-    FTXUI_BORDER_STYLE_LIGHT,
-    FTXUI_BORDER_STYLE_DASHED,
-    FTXUI_BORDER_STYLE_HEAVY,
-    FTXUI_BORDER_STYLE_DOUBLE,
-    FTXUI_BORDER_STYLE_ROUNDED,
-    FTXUI_BORDER_STYLE_EMPTY,
-} ftxui_border_style_t;
-
-/**
- * @brief Initializes the FTXUI interactive application (ScreenInteractive).
- * 
- * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
- */
-ftxui_app_handle_t ftxui_app_create_fullscreen();
-
-/**
- * @brief Initializes the FTXUI interactive application (ScreenInteractive) to fit the component.
- *
- * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
- */
-ftxui_app_handle_t ftxui_app_create_fit_component();
-
-/**
- * @brief Initializes the FTXUI interactive application (ScreenInteractive) as terminal output.
- *
- * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
- */
-ftxui_app_handle_t ftxui_app_create_terminal_output();
-
-/**
- * @brief Creates an app with a fixed size.
- *
- * @param w Width in columns.
- * @param h Height in rows.
- * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
- */
-ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h);
-
-/**
- * @brief Creates an app taking the full terminal size using the primary screen buffer.
- *
- * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
- */
-ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen();
-
-/**
- * @brief Creates an app taking the full terminal size using the alternate screen buffer.
- *
- * @return ftxui_app_handle_t A handle to the initialized app, or NULL on failure.
- */
-ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen();
-
-/**
- * @brief Creates a simple text element.
- * 
- * @param text The text to display.
- * @return ftxui_element_handle_t The element handle.
- */
-ftxui_element_handle_t ftxui_element_text(const char* text);
-
-/**
- * @brief Runs the main loop for the FTXUI app.
- * 
- * @param app The app handle.
- * @param component The root component to display.
- */
-void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component);
-
-/**
- * @brief Creates a component that calls a function periodically.
- * 
- * @param app The app handle.
- * @param on_poll The callback function to call.
- * @return ftxui_component_handle_t The component handle.
- */
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t app, void (*on_poll)(void*), void* userdata);
-
-/**
- * @brief Requests the app to exit.
- * 
- * @param app The app handle.
- */
-void ftxui_app_exit(ftxui_app_handle_t app);
-
-/**
- * @brief Cleans up and destroys the FTXUI app.
- *
- * @param app The app handle to destroy.
- */
-void ftxui_app_destroy(ftxui_app_handle_t app);
-
-// --- App configuration (call before ftxui_app_loop) ---
-
-/**
- * @brief Enable or disable mouse event tracking. Enabled by default.
- */
-void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable);
-
-/**
- * @brief Enable or disable automatic piped input handling. Enabled by default.
- */
-void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable);
-
-/**
- * @brief Force FTXUI to handle or not handle Ctrl-C regardless of component event handling.
- */
-void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force);
-
-/**
- * @brief Force FTXUI to handle or not handle Ctrl-Z regardless of component event handling.
- */
-void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force);
-
-// --- App operations ---
-
-/**
- * @brief Post a closure to be executed on the main loop thread. Safe to call from any thread.
- */
-void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
-
-/**
- * @brief Post an event to the main loop. The event is copied.
- */
-void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event);
-
-/**
- * @brief Execute callback with the terminal temporarily restored to its original state.
- */
-void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
-
-/**
- * @brief Return the currently active app handle, or NULL if none is running.
- */
-ftxui_app_handle_t ftxui_app_active();
-
-// --- Terminal info ---
-
-/**
- * @brief Return the terminal name. Pointer is valid until the app is destroyed. Do not free.
- */
-const char* ftxui_app_terminal_name(ftxui_app_handle_t app);
-
-/**
- * @brief Return the terminal version number.
- */
-int ftxui_app_terminal_version(ftxui_app_handle_t app);
-
-/**
- * @brief Return the terminal emulator name. Pointer is valid until the app is destroyed. Do not free.
- */
-const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app);
-
-/**
- * @brief Return the terminal emulator version string. Pointer is valid until the app is destroyed. Do not free.
- */
-const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app);
-
-/**
- * @brief Return the terminal capabilities as a malloc'd int array. Sets *count to the number of elements.
- * The caller must free() the returned pointer. Returns NULL if there are no capabilities.
- */
-int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count);
-
-// --- Mouse capture ---
-
-/**
- * @brief Try to capture the mouse exclusively. Returns NULL if already captured.
- * Destroy the handle with ftxui_captured_mouse_destroy to release the capture.
- */
-ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app);
-
-/**
- * @brief Release a captured mouse handle obtained from ftxui_app_capture_mouse.
- */
-void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle);
-
-/**
- * @brief Returns the current terminal width in columns.
- *
- * @return int The terminal width.
- */
-int ftxui_terminal_width();
-
-/**
- * @brief Returns the current terminal height in rows.
- *
- * @return int The terminal height.
- */
-int ftxui_terminal_height();
-
-/**
- * @brief Terminal color support level, matching ftxui::Terminal::Color.
- */
-typedef enum {
-    FTXUI_TERMINAL_COLOR_PALETTE1   = 0,
-    FTXUI_TERMINAL_COLOR_PALETTE16  = 1,
-    FTXUI_TERMINAL_COLOR_PALETTE256 = 2,
-    FTXUI_TERMINAL_COLOR_TRUE_COLOR = 3,
-} ftxui_terminal_color_t;
-
-/**
- * @brief Flat representation of ftxui::Terminal::Quirks.
- * Retrieve with ftxui_terminal_get_quirks, modify fields, then apply with
- * ftxui_terminal_set_quirks.
- */
-typedef struct {
-    bool block_characters;
-    bool cursor_hiding;
-    bool component_ascii;
-    ftxui_terminal_color_t color_support;
-} ftxui_quirks_t;
-
-/**
- * @brief Set the fallback terminal size used when auto-detection fails.
- */
-void ftxui_terminal_set_fallback_size(int w, int h);
-
-/**
- * @brief Return the global terminal color support level.
- */
-ftxui_terminal_color_t ftxui_terminal_color_support(void);
-
-/**
- * @brief Override the global terminal color support level.
- */
-void ftxui_terminal_set_color_support(ftxui_terminal_color_t color);
-
-/**
- * @brief Return the current terminal quirks as a flat struct.
- */
-ftxui_quirks_t ftxui_terminal_get_quirks(void);
-
-/**
- * @brief Apply terminal quirks from a flat struct.
- */
-void ftxui_terminal_set_quirks(ftxui_quirks_t quirks);
-
-/**
- * @brief Cleans up and destroys a component.
- * 
- * @param component The component handle to destroy.
- */
-void ftxui_component_destroy(ftxui_component_handle_t component);
-
-/**
- * @brief Creates a component with a custom render function.
- * 
- * @param component The inner component to wrap (optional).
- * @param callback The callback function to call for rendering.
- * @return ftxui_component_handle_t The component handle.
- */
-ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata);
-
-/**
- * @brief Destroys an element.
- * 
- * @param element The element handle to destroy.
- */
-void ftxui_element_destroy(ftxui_element_handle_t element);
-
-// --- Element Creation (for use in ftxui_render_callback_t) ---
-
-/**
- * @brief Creates a vbox element.
- * 
- * @param elements An array of element handles.
- * @param count The number of elements.
- * @return ftxui_element_handle_t The element handle.
- */
-ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count);
-
-/**
- * @brief Creates an hbox element.
- * 
- * @param elements An array of element handles.
- * @param count The number of elements.
- * @return ftxui_element_handle_t The element handle.
- */
-ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int count);
-
-/**
- * @brief Creates a gauge element.
- *
- * @param value The value of the gauge (0.0 to 1.0).
- * @return ftxui_element_handle_t The gauge element handle.
- */
-ftxui_element_handle_t ftxui_element_gauge(double value);
-
-/**
- * @brief Creates a separator element.
- *
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator();
-
-/**
- * @brief Creates a light separator element.
- *
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_light();
-
-/**
- * @brief Creates a dashed separator element.
- *
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_dashed();
-
-/**
- * @brief Creates a heavy separator element.
- *
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_heavy();
-
-/**
- * @brief Creates a double separator element.
- *
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_double();
-
-/**
- * @brief Creates an empty separator element.
- *
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_empty();
-
-/**
- * @brief Creates a styled separator element.
- *
- * @param style The border style to use.
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style);
-
-/**
- * @brief Creates a separator element with a custom character.
- *
- * @param character The character to use for the separator.
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_character(const char* character);
-
-/**
- * @brief Creates a horizontal selector separator.
- *
- * @param left The left position.
- * @param right The right position.
- * @param unselected_color The color when not selected.
- * @param selected_color The color when selected.
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_hselector(float left, float right, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
-
-/**
- * @brief Creates a vertical selector separator.
- *
- * @param up The up position.
- * @param down The down position.
- * @param unselected_color The color when not selected.
- * @param selected_color The color when selected.
- * @return ftxui_element_handle_t The separator element handle.
- */
-ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
-
-/**
- * @brief Wraps an element with a window.
- * 
- * @param title The title element.
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element wrapped in a window.
- */
-ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_element_handle_t element);
-
-
-// --- Decorators ---
-
-/**
- * @brief Wraps an element with a border.
- * 
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with a border.
- */
-ftxui_element_handle_t ftxui_element_border(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element with a light border.
- *
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with a light border.
- */
-ftxui_element_handle_t ftxui_element_border_light(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element with a dashed border.
- *
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with a dashed border.
- */
-ftxui_element_handle_t ftxui_element_border_dashed(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element with a heavy border.
- *
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with a heavy border.
- */
-ftxui_element_handle_t ftxui_element_border_heavy(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element with a double border.
- *
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with a double border.
- */
-ftxui_element_handle_t ftxui_element_border_double(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element with a rounded border.
- *
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with a rounded border.
- */
-ftxui_element_handle_t ftxui_element_border_rounded(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element with an empty border.
- *
- * @param element The element to wrap.
- * @return ftxui_element_handle_t A new element with an empty border.
- */
-ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element);
-
-/**
- * @brief Makes an element flexible, allowing it to expand or shrink.
- *
- * @param element The element to make flexible.
- * @return ftxui_element_handle_t A new element with flex properties.
- */
-ftxui_element_handle_t ftxui_element_flex(ftxui_element_handle_t element);
-
-/**
- * @brief Makes an element bold.
- *
- * @param element The element to make bold.
- * @return ftxui_element_handle_t A new element with bold properties.
- */
-ftxui_element_handle_t ftxui_element_bold(ftxui_element_handle_t element);
-
-/**
- * @brief Makes an element inverted.
- *
- * @param element The element to make inverted.
- * @return ftxui_element_handle_t A new element with inverted properties.
- */
-ftxui_element_handle_t ftxui_element_inverted(ftxui_element_handle_t element);
-
-/**
- * @brief Makes an element underlined.
- *
- * @param element The element to make underlined.
- * @return ftxui_element_handle_t A new element with underlined properties.
- */
-ftxui_element_handle_t ftxui_element_underlined(ftxui_element_handle_t element);
-
-/**
- * @brief Sets the foreground color of an element.
- *
- * @param element The element to color.
- * @param color The color to apply.
- * @return ftxui_element_handle_t A new element with the specified color.
- */
-ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-
-/**
- * @brief Sets the background color of an element.
- *
- * @param element The element to color.
- * @param color The color to apply.
- * @return ftxui_element_handle_t A new element with the specified color.
- */
-ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftxui_color_handle_t color);
-
-/**
- * @brief Adds a vertical scroll indicator to an element.
- *
- * @param element The element to add the scroll indicator to.
- * @return ftxui_element_handle_t A new element with a vertical scroll indicator.
- */
-ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element);
-
-/**
- * @brief Wraps an element in a frame, allowing it to be scrolled.
- *
- * @param element The element to wrap in a frame.
- * @return ftxui_element_handle_t A new element wrapped in a frame.
- */
-ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element);
-
-/**
- * @brief Applies size constraints to an element.
- *
- * @param element The element to apply constraints to.
- * @param width_or_height Specifies whether to constrain width or height.
- * @param constraint_type The type of constraint to apply.
- * @param value The value for the constraint.
- * @return ftxui_element_handle_t A new element with the specified size constraints.
- */
-ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
-
-/**
- * @brief Centers an element horizontally.
- *
- * @param element The element to center.
- * @return ftxui_element_handle_t A new element centered horizontally.
- */
-ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element);
-
-/**
- * @brief Centers an element vertically.
- *
- * @param element The element to center.
- * @return ftxui_element_handle_t A new element centered vertically.
- */
-ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element);
-
-/**
- * @brief Centers an element both horizontally and vertically.
- *
- * @param element The element to center.
- * @return ftxui_element_handle_t A new element centered.
- */
-ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element);
-
-/**
- * @brief Aligns an element to the right.
- *
- * @param element The element to align.
- * @return ftxui_element_handle_t A new element aligned to the right.
- */
-ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element);
-
-
-/**
- * @brief Makes an element dim.
- *
- * @param element The element to make dim.
- * @return ftxui_element_handle_t A new element with dim properties.
- */
-ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element);
-
-/**
- * @brief Makes an element blink.
- *
- * @param element The element to make blink.
- * @return ftxui_element_handle_t A new element with blink properties.
- */
-ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element);
-
-/**
- * @brief Makes an element strikethrough.
- *
- * @param element The element to make strikethrough.
- * @return ftxui_element_handle_t A new element with strikethrough properties.
- */
-ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element);
-
-/**
- * @brief Creates an element that does nothing, effectively hiding the child.
- *
- * @param element The element to hide.
- * @return ftxui_element_handle_t An empty element.
- */
-ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element);
-
-/**
- * @brief Returns the easing function for a given type.
- *
- * @param type The type of easing function.
- * @return ftxui_easing_function_t The easing function.
- */
-ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type);
-
-// --- Component Creation ---
-
-/**
- * @brief Creates a button component.
- * 
- * @param label The label of the button.
- * @param on_click The callback function when the button is clicked.
- * @return ftxui_component_handle_t The button component handle.
- */
+// --- Button ---
 ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata);
-
-/**
- * @brief Creates a button component with options.
- *
- * @param label The label of the button.
- * @param on_click The callback function when the button is clicked.
- * @param options The options for the button.
- * @return ftxui_component_handle_t The button component handle.
- */
 ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_button_option_t options);
-
-/**
- * @brief Returns the default button options (Simple).
- * 
- * @return ftxui_button_option_t The default button options.
- */
 ftxui_button_option_t ftxui_button_option_simple();
-
-/**
- * @brief Returns the ASCII button options.
- * 
- * @return ftxui_button_option_t The ASCII button options.
- */
 ftxui_button_option_t ftxui_button_option_ascii();
-
-/**
- * @brief Returns the border button options.
- * 
- * @return ftxui_button_option_t The border button options.
- */
 ftxui_button_option_t ftxui_button_option_border();
-
-/**
- * @brief Returns the animated button options with background and foreground colors.
- * 
- * @param background The background color.
- * @param foreground The foreground color.
- * @param background_active The background active color.
- * @param foreground_active The foreground active color.
- * @return ftxui_button_option_t The button options.
- */
 ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t background, ftxui_color_handle_t foreground, ftxui_color_handle_t background_active, ftxui_color_handle_t foreground_active);
 
-/**
- * @brief Creates a checkbox component.
- * 
- * @param label The label of the checkbox.
- * @param checked A pointer to a boolean that stores the checked state.
- * @return ftxui_component_handle_t The checkbox component handle.
- */
+// --- Checkbox ---
 ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked);
 ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata);
 
-// --- String handle (for Input component) ---
+// --- Input ---
+// String handle wraps a mutable std::string for use with Input components.
 typedef void* ftxui_string_handle_t;
 ftxui_string_handle_t ftxui_string_create(const char* initial);
 const char* ftxui_string_get(ftxui_string_handle_t str);
 void ftxui_string_set(ftxui_string_handle_t str, const char* value);
 void ftxui_string_destroy(ftxui_string_handle_t str);
 
-/**
- * @brief Creates an input component.
- *
- * @param content A string handle for the input content.
- * @param placeholder The placeholder text when the input is empty.
- * @return ftxui_component_handle_t The input component handle.
- */
 ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder);
 ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder);
 
@@ -1196,463 +1055,166 @@ typedef struct {
 } ftxui_input_options_t;
 ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts);
 
-/**
- * @brief Creates a toggle component.
- * 
- * @param entries An array of strings for the toggle entries.
- * @param count The number of entries.
- * @param selected A pointer to an integer that stores the selected index.
- * @return ftxui_component_handle_t The toggle component handle.
- */
+// --- Toggle ---
 ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count, int* selected);
 
-/**
- * @brief Creates a slider component.
- * 
- * @param label The label of the slider.
- * @param value A pointer to an integer that stores the value.
- * @param min The minimum value.
- * @param max The maximum value.
- * @param increment The increment value.
- * @return ftxui_component_handle_t The slider component handle.
- */
+// --- Slider ---
 ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment);
-// Slider with on_change callback. Note: SliderOption does not support a label; use the plain
-// ftxui_component_slider for a labeled slider without a callback.
+// Slider with on_change callback (no label). Use ftxui_component_slider for a labeled variant.
 ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata);
 ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata);
+ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction);
+ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment);
+ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive);
 
-/**
- * @brief Creates a radiobox component.
- * 
- * @param entries An array of strings for the radiobox entries.
- * @param count The number of entries.
- * @param selected A pointer to an integer that stores the selected index.
- * @return ftxui_component_handle_t The radiobox component handle.
- */
+// --- Radiobox ---
 ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected);
 ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata);
 
-/**
- * @brief Creates a vertical container for components.
- * 
- * @return ftxui_component_handle_t The container component.
- */
-ftxui_component_handle_t ftxui_component_container_vertical();
-ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector);
-
-/**
- * @brief Creates a horizontal container for components.
- *
- * @return ftxui_component_handle_t The container component.
- */
-ftxui_component_handle_t ftxui_component_container_horizontal();
-ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector);
-
-/**
- * @brief Creates a tab container for components.
- *
- * @param selected A pointer to an integer that stores the selected index.
- * @return ftxui_component_handle_t The container component.
- */
-ftxui_component_handle_t ftxui_component_container_tab(int* selected);
-
-/**
- * @brief Creates a stacked container for components.
- * 
- * @return ftxui_component_handle_t The container component.
- */
-ftxui_component_handle_t ftxui_component_container_stacked();
-
-/**
- * @brief Creates a menu/list component.
- * 
- * @param entries An array of strings for the menu entries.
- * @param count The number of entries.
- * @param selected A pointer to an integer that will store the selected index.
- * @return ftxui_component_handle_t The menu component handle.
- */
+// --- Menu ---
 ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected);
 ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_userdata, ftxui_callback_t on_enter, void* on_enter_userdata);
-
-/**
- * @brief Creates a menu entry component.
- * 
- * @param label The label of the menu entry.
- * @return ftxui_component_handle_t The menu entry component handle.
- */
 ftxui_component_handle_t ftxui_component_menu_entry(const char* label);
+ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors);
+ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected);
+ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected);
+ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected);
 
-/**
- * @brief Creates a dropdown component.
- * 
- * @param entries An array of strings for the dropdown entries.
- * @param count The number of entries.
- * @param selected A pointer to an integer that will store the selected index.
- * @return ftxui_component_handle_t The dropdown component handle.
- */
+// --- Dropdown ---
 ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int count, int* selected);
 
+typedef ftxui_element_handle_t (*ftxui_dropdown_transform_callback_t)(
+    bool open,
+    ftxui_element_handle_t checkbox,
+    ftxui_element_handle_t radiobox,
+    void* userdata
+);
 
-/**
- * @brief Creates a resizable split left component.
- * 
- * @param main The main component.
- * @param back The background component.
- * @param main_size A pointer to an integer that stores the size of the main component.
- * @return ftxui_component_handle_t The resizable split component handle.
- */
-ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+// entry_transform may be null (uses default radiobox entry rendering).
+ftxui_component_handle_t ftxui_component_dropdown_custom(
+    const char** entries, int count, int* selected,
+    ftxui_dropdown_transform_callback_t transform, void* transform_userdata,
+    ftxui_button_transform_t entry_transform, void* entry_transform_userdata
+);
 
-/**
- * @brief Creates a resizable split right component.
- * 
- * @param main The main component.
- * @param back The background component.
- * @param main_size A pointer to an integer that stores the size of the main component.
- * @return ftxui_component_handle_t The resizable split component handle.
- */
-ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+// =============================================================================
+// §18  Components — Containers
+// =============================================================================
 
-/**
- * @brief Creates a resizable split top component.
- * 
- * @param main The main component.
- * @param back The background component.
- * @param main_size A pointer to an integer that stores the size of the main component.
- * @return ftxui_component_handle_t The resizable split component handle.
- */
-ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
-
-/**
- * @brief Creates a resizable split bottom component.
- * 
- * @param main The main component.
- * @param back The background component.
- * @param main_size A pointer to an integer that stores the size of the main component.
- * @return ftxui_component_handle_t The resizable split component handle.
- */
-ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
-
-/**
- * @brief Creates a collapsible component.
- * 
- * @param label The label of the collapsible component.
- * @param child The child component.
- * @param show A pointer to a boolean that stores the visibility state.
- * @return ftxui_component_handle_t The collapsible component handle.
- */
-ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show);
-
-/**
- * @brief Creates a maybe component, which is shown only if a condition is met.
- * 
- * @param child The child component.
- * @param show A pointer to a boolean that stores the visibility state.
- * @return ftxui_component_handle_t The maybe component handle.
- */
-ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show);
-ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata);
-
-/**
- * @brief Creates a modal component.
- * 
- * @param main The main component.
- * @param modal The modal component.
- * @param show_modal A pointer to a boolean that stores the visibility state of the modal.
- * @return ftxui_component_handle_t The modal component handle.
- */
-ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal);
-
-/**
- * @brief Adds a child component to a container.
- * 
- * @param container The container component.
- * @param child The child component to add.
- */
+ftxui_component_handle_t ftxui_component_container_vertical();
+ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector);
+ftxui_component_handle_t ftxui_component_container_horizontal();
+ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector);
+ftxui_component_handle_t ftxui_component_container_tab(int* selected);
+ftxui_component_handle_t ftxui_component_container_stacked();
 void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_handle_t child);
 
-/**
- * @brief Renders an element.
- *
- * @param element The element to render.
- * @return ftxui_render_handle_t The element handle.
- */
+// =============================================================================
+// §19  Components — Advanced
+// =============================================================================
+
+// --- Renderer variants ---
+ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata);
+
+typedef ftxui_element_handle_t (*ftxui_focused_render_callback_t)(bool focused, void* userdata);
+ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata);
+
+typedef ftxui_element_handle_t (*ftxui_inner_render_callback_t)(ftxui_element_handle_t inner, void* userdata);
+ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata);
+
 ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component);
 
-// --- Component Decorators ---
-
 /**
- * @brief Wraps a component with a border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with a border.
+ * @brief Creates a component that calls on_poll on every render frame. C-only; no FTXUI equivalent.
  */
-ftxui_component_handle_t ftxui_component_border(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t app, void (*on_poll)(void*), void* userdata);
 
-/**
- * @brief Wraps a component with a light border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with a light border.
- */
-ftxui_component_handle_t ftxui_component_border_light(ftxui_component_handle_t component);
+// --- Visibility ---
+ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show);
+ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show);
+ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata);
+ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal);
 
-/**
- * @brief Wraps a component with a dashed border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with a dashed border.
- */
-ftxui_component_handle_t ftxui_component_border_dashed(ftxui_component_handle_t component);
+// --- ResizableSplit ---
+ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
 
-/**
- * @brief Wraps a component with a heavy border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with a heavy border.
- */
-ftxui_component_handle_t ftxui_component_border_heavy(ftxui_component_handle_t component);
+typedef ftxui_element_handle_t (*ftxui_separator_func_t)(void* userdata);
 
-/**
- * @brief Wraps a component with a double border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with a double border.
- */
-ftxui_component_handle_t ftxui_component_border_double(ftxui_component_handle_t component);
+typedef struct {
+    ftxui_component_handle_t main;
+    ftxui_component_handle_t back;
+    ftxui_direction_t direction;
+    int* main_size;
+    int* min_size;
+    int* max_size;
+    ftxui_separator_func_t separator_func;
+    void* separator_userdata;
+} ftxui_resizable_split_option_t;
 
-/**
- * @brief Wraps a component with a rounded border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with a rounded border.
- */
-ftxui_component_handle_t ftxui_component_border_rounded(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option);
 
-/**
- * @brief Wraps a component with an empty border.
- *
- * @param component The component to wrap.
- * @return ftxui_component_handle_t A new component with an empty border.
- */
-ftxui_component_handle_t ftxui_component_border_empty(ftxui_component_handle_t component);
+// --- Window ---
+typedef struct {
+    ftxui_component_handle_t inner;  // nullable
+    const char* title;               // nullable
+    int* left;    // nullable (use left_default if null)
+    int* top;     // nullable
+    int* width;   // nullable
+    int* height;  // nullable
+    int left_default;
+    int top_default;
+    int width_default;
+    int height_default;
+} ftxui_window_options_t;
 
-/**
- * @brief Wraps a component in a frame, allowing it to be scrolled.
- *
- * @param component The component to wrap in a frame.
- * @return ftxui_component_handle_t A new component wrapped in a frame.
- */
-ftxui_component_handle_t ftxui_component_frame(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options);
 
-/**
- * @brief Makes a component flexible, allowing it to expand or shrink.
- *
- * @param component The component to make flexible.
- * @return ftxui_component_handle_t A new component with flex properties.
- */
-ftxui_component_handle_t ftxui_component_flex(ftxui_component_handle_t component);
-
-/**
- * @brief Makes a component bold.
- *
- * @param component The component to make bold.
- * @return ftxui_component_handle_t A new component with bold properties.
- */
-ftxui_component_handle_t ftxui_component_bold(ftxui_component_handle_t component);
-
-/**
- * @brief Makes a component inverted.
- *
- * @param component The component to make inverted.
- * @return ftxui_component_handle_t A new component with inverted properties.
- */
-ftxui_component_handle_t ftxui_component_inverted(ftxui_component_handle_t component);
-
-/**
- * @brief Makes a component underlined.
- *
- * @param component The component to make underlined.
- * @return ftxui_component_handle_t A new component with underlined properties.
- */
-ftxui_component_handle_t ftxui_component_underlined(ftxui_component_handle_t component);
-
-/**
- * @brief Sets the foreground color of a component.
- *
- * @param component The component to color.
- * @param color The color to apply.
- * @return ftxui_component_handle_t A new component with the specified color.
- */
-ftxui_component_handle_t ftxui_component_color(ftxui_component_handle_t component, ftxui_color_handle_t color);
-
-/**
- * @brief Sets the background color of a component.
- *
- * @param component The component to color.
- * @param color The color to apply.
- * @return ftxui_component_handle_t A new component with the specified color.
- */
-ftxui_component_handle_t ftxui_component_bgcolor(ftxui_component_handle_t component, ftxui_color_handle_t color);
-
-/**
- * @brief Adds a vertical scroll indicator to a component.
- *
- * @param component The component to add the scroll indicator to.
- * @return ftxui_component_handle_t A new component with a vertical scroll indicator.
- */
-ftxui_component_handle_t ftxui_component_vscroll_indicator(ftxui_component_handle_t component);
-
-/**
- * @brief Applies size constraints to a component.
- *
- * @param component The component to apply constraints to.
- * @param width_or_height Specifies whether to constrain width or height.
- * @param constraint_type The type of constraint to apply.
- * @param value The value for the constraint.
- * @return ftxui_component_handle_t A new component with the specified size constraints.
- */
-ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t component, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
-
-/**
- * @brief Centers a component horizontally.
- *
- * @param component The component to center.
- * @return ftxui_component_handle_t A new component centered horizontally.
- */
-ftxui_component_handle_t ftxui_component_hcenter(ftxui_component_handle_t component);
-
-/**
- * @brief Centers a component vertically.
- *
- * @param component The component to center.
- * @return ftxui_component_handle_t A new component centered vertically.
- */
-ftxui_component_handle_t ftxui_component_vcenter(ftxui_component_handle_t component);
-
-/**
- * @brief Centers a component both horizontally and vertically.
- *
- * @param component The component to center.
- * @return ftxui_component_handle_t A new component centered.
- */
-ftxui_component_handle_t ftxui_component_center(ftxui_component_handle_t component);
-
-/**
- * @brief Aligns a component to the right.
- *
- * @param component The component to align.
- * @return ftxui_component_handle_t A new component aligned to the right.
- */
-ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t component);
-
-
-/**
- * @brief Makes a component dim.
- *
- * @param component The component to make dim.
- * @return ftxui_component_handle_t A new component with dim properties.
- */
-ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component);
-
-/**
- * @brief Makes a component blink.
- *
- * @param component The component to make blink.
- * @return ftxui_component_handle_t A new component with blink properties.
- */
-ftxui_component_handle_t ftxui_component_blink(ftxui_component_handle_t component);
-
-/**
- * @brief Makes a component strikethrough.
- *
- * @param component The component to make strikethrough.
- * @return ftxui_component_handle_t A new component with strikethrough properties.
- */
-ftxui_component_handle_t ftxui_component_strikethrough(ftxui_component_handle_t component);
-
-/**
- * @brief Creates a component that does nothing, effectively hiding the child.
- *
- * @param component The component to hide.
- * @return ftxui_component_handle_t An empty component.
- */
-ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t component);
-
-/**
- * @brief Wraps a component to track hover state.
- *
- * @param component The component to wrap.
- * @param hover A pointer to a boolean that stores the hover state.
- * @return ftxui_component_handle_t A new component that tracks hover state.
- */
+// --- Hoverable ---
 ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover);
 ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_callback_t on_leave, void* on_leave_userdata);
 ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata);
 
-// --- Additional Element Creation ---
+// --- CatchEvent ---
+typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* userdata);
+ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata);
 
-ftxui_element_handle_t ftxui_element_vtext(const char* text);
-ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index);
-ftxui_element_handle_t ftxui_element_paragraph(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text);
-ftxui_element_handle_t ftxui_element_empty();
+void ftxui_component_destroy(ftxui_component_handle_t component);
 
-ftxui_element_handle_t ftxui_element_gauge_left(double value);
-ftxui_element_handle_t ftxui_element_gauge_right(double value);
-ftxui_element_handle_t ftxui_element_gauge_up(double value);
-ftxui_element_handle_t ftxui_element_gauge_down(double value);
-ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction);
+// =============================================================================
+// §20  Component Decorators
+// =============================================================================
 
-ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count);
-ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count);
-ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count);
+ftxui_component_handle_t ftxui_component_border(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_border_light(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_border_dashed(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_border_heavy(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_border_double(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_border_rounded(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_border_empty(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_bold(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_inverted(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_underlined(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_blink(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_strikethrough(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_color(ftxui_component_handle_t component, ftxui_color_handle_t color);
+ftxui_component_handle_t ftxui_component_bgcolor(ftxui_component_handle_t component, ftxui_color_handle_t color);
+ftxui_component_handle_t ftxui_component_vscroll_indicator(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_frame(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_flex(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_hcenter(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_vcenter(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_center(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t component, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
 
-ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_flex_shrink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xflex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xflex_grow(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xflex_shrink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yflex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yflex_grow(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yflex_shrink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_notflex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_filler();
-
-ftxui_element_handle_t ftxui_element_xframe(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yframe(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_block(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_block_blinking(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_bar(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_bar_blinking(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element);
-
-ftxui_element_handle_t ftxui_element_italic(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_underlined_double(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_automerge(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_hyperlink(const char* link, ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_hscroll_indicator(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_clear_under(ftxui_element_handle_t element);
-
-ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t element, ftxui_border_style_t style);
-ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t element, ftxui_border_style_t style, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_border_colored(ftxui_element_handle_t element, ftxui_color_handle_t color);
-
-ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-
-ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y);
-ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
-
-// --- Events ---
+// =============================================================================
+// §21  Events  (ftxui/component/event.hpp)
+// =============================================================================
 
 typedef enum {
     FTXUI_MOUSE_BUTTON_LEFT        = 0,
@@ -1750,341 +1312,16 @@ ftxui_event_handle_t ftxui_event_special(const char* input);
 ftxui_event_handle_t ftxui_event_ctrl_char(char c);
 ftxui_event_handle_t ftxui_event_alt_char(char c);
 
-typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* userdata);
-ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata);
+// =============================================================================
+// §22  Animation  (ftxui/component/animation.hpp)
+// =============================================================================
+// NOTE: ftxui_easing_function_t and ftxui_easing_function_type_t are declared
+// above in the forward-declared types block due to use in §17.
 
-// --- Focusable renderer ---
-typedef ftxui_element_handle_t (*ftxui_focused_render_callback_t)(bool focused, void* userdata);
-ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata);
-
-// --- Component render decorator ---
-typedef ftxui_element_handle_t (*ftxui_inner_render_callback_t)(ftxui_element_handle_t inner, void* userdata);
-ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata);
-
-// --- Directional int slider (no label) ---
-ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction);
-
-// --- Float slider ---
-ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment);
-ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive);
-
-// --- Horizontal menu ---
-ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected);
-
-// --- ResizableSplit with options ---
-typedef ftxui_element_handle_t (*ftxui_separator_func_t)(void* userdata);
-
-typedef struct {
-    ftxui_component_handle_t main;
-    ftxui_component_handle_t back;
-    ftxui_direction_t direction;
-    int* main_size;
-    int* min_size;
-    int* max_size;
-    ftxui_separator_func_t separator_func;
-    void* separator_userdata;
-} ftxui_resizable_split_option_t;
-
-ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option);
-
-// --- Gridbox element ---
-// cells: flat row-major array; row_lengths[i] = number of cells in row i
-ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count);
-
-// --- MenuEntry with animated colors ---
-ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors);
-
-// --- Animated horizontal menu ---
-ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected);
-
-// --- RequestAnimationFrame ---
-void ftxui_app_request_animation_frame(ftxui_app_handle_t app);
-
-// --- Cell style ---
-// Represents the style of a terminal cell. Used by selectionStyle and canvas stylizer callbacks.
-// When used as a canvas stylizer: foreground_color and background_color are temporary handles —
-// the callback may read or replace them (setting to NULL leaves the color unchanged), but must NOT
-// call ftxui_color_destroy() on the handles it receives.
-typedef struct {
-    bool blink;
-    bool bold;
-    bool dim;
-    bool italic;
-    bool inverted;
-    bool underlined;
-    bool underlined_double;
-    bool strikethrough;
-    bool automerge;
-    ftxui_color_handle_t foreground_color;
-    ftxui_color_handle_t background_color;
-} ftxui_cell_t;
-
-typedef void (*ftxui_cell_style_callback_t)(ftxui_cell_t* cell, void* userdata);
-
-// --- Canvas ---
-typedef void* ftxui_canvas_handle_t;
-ftxui_canvas_handle_t ftxui_canvas_create(int width, int height);
-void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas);
-int ftxui_canvas_width(ftxui_canvas_handle_t canvas);
-int ftxui_canvas_height(ftxui_canvas_handle_t canvas);
-void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text);
-void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color);
-// Draws text with a stylizer callback. The callback may modify cell style/color fields.
-// The foreground_color and background_color fields in ftxui_cell_t are temporary handles — do NOT free them.
-void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata);
-// Boolean point drawing (braille characters)
-void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value);
-void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
-// Line drawing (color=NULL draws with default color)
-void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
-// Circle drawing — point (braille)
-void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
-// Ellipse drawing — point (braille)
-void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
-// Boolean block drawing (box characters)
-void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value);
-void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
-// Line drawing — block (color=NULL draws with default color)
-void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
-// Circle drawing — block
-void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
-// Ellipse drawing — block
-void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
-// Apply a style decorator at a cell position (x must be multiple of 2, y multiple of 4)
-void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata);
-// Creates an element from the canvas. Caller keeps ownership of the canvas handle.
-ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas);
-
-// --- graph element ---
-// The callback fills `output` (pre-allocated array of `width` ints) with graph values [0..height].
-typedef void (*ftxui_graph_callback_t)(int width, int height, int* output, void* userdata);
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata);
-
-// --- LinearGradient ---
-typedef void* ftxui_linear_gradient_handle_t;
-ftxui_linear_gradient_handle_t ftxui_linear_gradient_create();
-void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient);
-void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle);
-void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color);
-void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position);
-ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
-ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
-
-// --- flexbox element ---
-typedef enum {
-    FTXUI_FLEXBOX_DIRECTION_ROW,
-    FTXUI_FLEXBOX_DIRECTION_ROW_INVERSED,
-    FTXUI_FLEXBOX_DIRECTION_COLUMN,
-    FTXUI_FLEXBOX_DIRECTION_COLUMN_INVERSED,
-} ftxui_flexbox_direction_t;
-
-typedef enum {
-    FTXUI_FLEXBOX_WRAP_NO_WRAP,
-    FTXUI_FLEXBOX_WRAP_WRAP,
-    FTXUI_FLEXBOX_WRAP_WRAP_INVERSED,
-} ftxui_flexbox_wrap_t;
-
-typedef enum {
-    FTXUI_FLEXBOX_JUSTIFY_FLEX_START,
-    FTXUI_FLEXBOX_JUSTIFY_FLEX_END,
-    FTXUI_FLEXBOX_JUSTIFY_CENTER,
-    FTXUI_FLEXBOX_JUSTIFY_STRETCH,
-    FTXUI_FLEXBOX_JUSTIFY_SPACE_BETWEEN,
-    FTXUI_FLEXBOX_JUSTIFY_SPACE_AROUND,
-    FTXUI_FLEXBOX_JUSTIFY_SPACE_EVENLY,
-} ftxui_flexbox_justify_t;
-
-typedef enum {
-    FTXUI_FLEXBOX_ALIGN_ITEMS_FLEX_START,
-    FTXUI_FLEXBOX_ALIGN_ITEMS_FLEX_END,
-    FTXUI_FLEXBOX_ALIGN_ITEMS_CENTER,
-    FTXUI_FLEXBOX_ALIGN_ITEMS_STRETCH,
-} ftxui_flexbox_align_items_t;
-
-typedef enum {
-    FTXUI_FLEXBOX_ALIGN_CONTENT_FLEX_START,
-    FTXUI_FLEXBOX_ALIGN_CONTENT_FLEX_END,
-    FTXUI_FLEXBOX_ALIGN_CONTENT_CENTER,
-    FTXUI_FLEXBOX_ALIGN_CONTENT_STRETCH,
-    FTXUI_FLEXBOX_ALIGN_CONTENT_SPACE_BETWEEN,
-    FTXUI_FLEXBOX_ALIGN_CONTENT_SPACE_AROUND,
-    FTXUI_FLEXBOX_ALIGN_CONTENT_SPACE_EVENLY,
-} ftxui_flexbox_align_content_t;
-
-typedef struct {
-    ftxui_flexbox_direction_t direction;
-    ftxui_flexbox_wrap_t wrap;
-    ftxui_flexbox_justify_t justify_content;
-    ftxui_flexbox_align_items_t align_items;
-    ftxui_flexbox_align_content_t align_content;
-    int gap_x;
-    int gap_y;
-} ftxui_flexbox_config_t;
-
-ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config);
-
-// --- Table ---
-typedef void* ftxui_table_handle_t;
-typedef void* ftxui_table_selection_handle_t;
-
-// A C-callable decorator: receives an owned element handle, returns a new one.
-// The input handle is consumed by the call — do not free it separately.
-typedef ftxui_element_handle_t (*ftxui_decorator_callback_t)(
-    ftxui_element_handle_t element, void* userdata);
-
-// cells is a flat row-major array of (rows * cols) strings
-ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols);
-void ftxui_table_destroy(ftxui_table_handle_t table);
-ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table);
-
-ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table);
-ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row);
-ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to);
-ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col);
-ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row);
-ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to);
-ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max);
-void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel);
-
-// Border / separator styling
-void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color);
-void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-
-// Generic decorator callbacks
-void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-
-// Convenience shortcuts
-void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel);
-void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel);
-void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color);
-void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset);
-
-// --- Window component ---
-typedef struct {
-    ftxui_component_handle_t inner;  // nullable
-    const char* title;               // nullable
-    int* left;    // nullable (use left_default if null)
-    int* top;     // nullable
-    int* width;   // nullable
-    int* height;  // nullable
-    int left_default;
-    int top_default;
-    int width_default;
-    int height_default;
-} ftxui_window_options_t;
-
-ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options);
-
-// --- Loop ---
-typedef void* ftxui_loop_handle_t;
-ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component);
-bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop);
-void ftxui_loop_run_once(ftxui_loop_handle_t loop);
-void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop);
-void ftxui_loop_destroy(ftxui_loop_handle_t loop);
-
-// --- ColorInfo ---
-typedef struct {
-    int         index_256;   // -1 for padding entries in ftxui_color_info_sorted_2d
-    uint8_t     index_16;
-    const char* name;
-    uint8_t     red;
-    uint8_t     green;
-    uint8_t     blue;
-    uint8_t     hue;
-    uint8_t     saturation;
-    uint8_t     value;
-} ftxui_color_info_t;
-
-// Returns a flat row-major array of (num_rows * max_cols) entries.
-// Entries with index_256 == -1 are padding.
-// Caller must call ftxui_color_info_free() on the returned pointer.
-ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols);
-void ftxui_color_info_free(ftxui_color_info_t* data);
-
-// Returns color info for a single Palette256 or Palette16 entry by value.
-// The name pointer is valid for the lifetime of the program.
-ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index);
-ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index);
-
-// --- Dropdown with custom transform ---
-typedef ftxui_element_handle_t (*ftxui_dropdown_transform_callback_t)(
-    bool open,
-    ftxui_element_handle_t checkbox,
-    ftxui_element_handle_t radiobox,
-    void* userdata
-);
-
-// entry_transform may be null (uses default radiobox entry rendering).
-ftxui_component_handle_t ftxui_component_dropdown_custom(
-    const char** entries, int count, int* selected,
-    ftxui_dropdown_transform_callback_t transform, void* transform_userdata,
-    ftxui_button_transform_t entry_transform, void* entry_transform_userdata
-);
-
-// --- Selection style ---
-ftxui_element_handle_t ftxui_element_selection_style(
-    ftxui_element_handle_t element,
-    ftxui_cell_style_callback_t callback,
-    void* userdata
-);
-
-// Registers a callback invoked whenever the terminal text selection changes.
-void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
-
-// Returns the currently selected text. Caller must free() the returned string.
-char* ftxui_app_get_selection(ftxui_app_handle_t app);
+/**
+ * @brief Returns the easing function for a given type.
+ */
+ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type);
 
 #ifdef __cplusplus
 }
