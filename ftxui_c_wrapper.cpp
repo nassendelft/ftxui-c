@@ -1,20 +1,25 @@
 #include "ftxui_c_api.h"
+#include <ftxui/component/animation.hpp>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
-#include <ftxui/component/animation.hpp>
-#include <ftxui/component/event.hpp>
 #include <ftxui/component/component_options.hpp>
-#include <ftxui/screen/color.hpp>
-#include <ftxui/screen/terminal.hpp>
-#include <ftxui/dom/elements.hpp>
+#include <ftxui/component/event.hpp>
+#include <ftxui/component/loop.hpp>
+#include <ftxui/dom/canvas.hpp>
 #include <ftxui/dom/direction.hpp>
+#include <ftxui/dom/elements.hpp>
 #include <ftxui/dom/flexbox_config.hpp>
 #include <ftxui/dom/linear_gradient.hpp>
-#include <ftxui/component/loop.hpp>
+#include <ftxui/dom/table.hpp>
+#include <ftxui/screen/cell.hpp>
+#include <ftxui/screen/color.hpp>
+#include <ftxui/screen/color_info.hpp>
+#include <ftxui/screen/terminal.hpp>
+#include <algorithm>
 #include <cstdlib>
 #include <memory>
-#include <vector>
 #include <string.h>
+#include <vector>
 
 // Wrapper for Component to handle lifetime and children for containers
 struct FTXUIComponentWrapper {
@@ -339,7 +344,6 @@ void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
 }
 
 // --- selection style decorator ---
-#include <ftxui/screen/cell.hpp>
 
 ftxui_element_handle_t ftxui_element_selection_style(
     ftxui_element_handle_t element,
@@ -440,8 +444,6 @@ void ftxui_color_destroy(ftxui_color_handle_t color) {
 // §5  Color Info  (ftxui/screen/color_info.hpp)
 // =============================================================================
 
-#include <ftxui/screen/color_info.hpp>
-#include <algorithm>
 
 static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
     ftxui_color_info_t r;
@@ -1285,8 +1287,6 @@ ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, i
 // §14  Canvas  (ftxui/dom/canvas.hpp)
 // =============================================================================
 
-#include <ftxui/dom/canvas.hpp>
-
 ftxui_canvas_handle_t ftxui_canvas_create(int width, int height) {
     return static_cast<ftxui_canvas_handle_t>(new ftxui::Canvas(width, height));
 }
@@ -1591,8 +1591,6 @@ ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) {
 // =============================================================================
 // §15  Table  (ftxui/dom/table.hpp)
 // =============================================================================
-
-#include <ftxui/dom/table.hpp>
 
 struct FTXUITableWrapper {
     ftxui::Table table;
