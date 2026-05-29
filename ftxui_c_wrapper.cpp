@@ -40,179 +40,6 @@ struct FTXUIEventWrapper {
 };
 
 // =============================================================================
-// §4  Color  (ftxui/screen/color.hpp)
-// =============================================================================
-
-ftxui_color_handle_t ftxui_color_default() {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color());
-}
-
-ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(r, g, b));
-}
-
-ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(r, g, b, a));
-}
-
-ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::HSV(h, s, v)));
-}
-
-ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::HSVA(h, s, v, a)));
-}
-
-ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette1>(index)));
-}
-
-ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette16>(index)));
-}
-
-ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette256>(index)));
-}
-ftxui_color_handle_t ftxui_color_palette256_raw(int index) {
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette256>(index)));
-}
-
-ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b) {
-    auto* color_a = static_cast<ftxui::Color*>(a);
-    auto* color_b = static_cast<ftxui::Color*>(b);
-    if (!color_a || !color_b) return nullptr;
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::Interpolate(t, *color_a, *color_b)));
-}
-
-ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
-    auto* color_lhs = static_cast<ftxui::Color*>(lhs);
-    auto* color_rhs = static_cast<ftxui::Color*>(rhs);
-    if (!color_lhs || !color_rhs) return nullptr;
-    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::Blend(*color_lhs, *color_rhs)));
-}
-
-bool ftxui_color_is_opaque(ftxui_color_handle_t color) {
-    auto* ftxui_color = static_cast<ftxui::Color*>(color);
-    if (!ftxui_color) return false;
-    return ftxui_color->IsOpaque();
-}
-
-bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
-    auto* color_lhs = static_cast<ftxui::Color*>(lhs);
-    auto* color_rhs = static_cast<ftxui::Color*>(rhs);
-    if (!color_lhs || !color_rhs) return false; // Or handle as error
-    return *color_lhs == *color_rhs;
-}
-
-bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
-    auto* color_lhs = static_cast<ftxui::Color*>(lhs);
-    auto* color_rhs = static_cast<ftxui::Color*>(rhs);
-    if (!color_lhs || !color_rhs) return false; // Or handle as error
-    return *color_lhs != *color_rhs;
-}
-
-char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color) {
-    auto* ftxui_color = static_cast<ftxui::Color*>(color);
-    if (!ftxui_color) return strdup(""); // Return empty string for null color
-    std::string s = ftxui_color->Print(is_background_color);
-    return strdup(s.c_str());
-}
-
-void ftxui_color_destroy(ftxui_color_handle_t color) {
-    delete static_cast<ftxui::Color*>(color);
-}
-
-// =============================================================================
-// §5  Color Info  (ftxui/screen/color_info.hpp)
-// =============================================================================
-
-#include <ftxui/screen/color_info.hpp>
-#include <algorithm>
-
-static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
-    ftxui_color_info_t r;
-    r.index_256  = info.index_256;
-    r.index_16   = info.index_16;
-    r.name       = info.name;
-    r.red        = info.red;
-    r.green      = info.green;
-    r.blue       = info.blue;
-    r.hue        = info.hue;
-    r.saturation = info.saturation;
-    r.value      = info.value;
-    return r;
-}
-
-static const ftxui_color_info_t k_padding_entry = {-1, 0, "", 0, 0, 0, 0, 0, 0};
-
-ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
-    auto info_columns = ftxui::ColorInfoSorted2D();
-    int rows = static_cast<int>(info_columns.size());
-    int cols = 0;
-    for (auto& col : info_columns) {
-        cols = std::max(cols, static_cast<int>(col.size()));
-    }
-    *num_rows = rows;
-    *max_cols = cols;
-    if (rows == 0 || cols == 0) return nullptr;
-
-    auto* result = new ftxui_color_info_t[rows * cols];
-    for (int r = 0; r < rows; r++) {
-        for (int c = 0; c < cols; c++) {
-            int idx = r * cols + c;
-            if (c < static_cast<int>(info_columns[r].size())) {
-                result[idx] = to_c_color_info(info_columns[r][c]);
-            } else {
-                result[idx] = k_padding_entry;
-            }
-        }
-    }
-    return result;
-}
-
-void ftxui_color_info_free(ftxui_color_info_t* data) {
-    delete[] data;
-}
-
-ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) {
-    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette256)index));
-}
-
-ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) {
-    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette16)index));
-}
-
-// =============================================================================
-// §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
-// =============================================================================
-
-ftxui_linear_gradient_handle_t ftxui_linear_gradient_create() {
-    return static_cast<ftxui_linear_gradient_handle_t>(new ftxui::LinearGradient());
-}
-
-void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient) {
-    delete static_cast<ftxui::LinearGradient*>(gradient);
-}
-
-void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle) {
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    if (g) g->Angle(angle);
-}
-
-void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color) {
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (g && col) g->Stop(*col);
-}
-
-void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position) {
-    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (g && col) g->Stop(*col, position);
-}
-
-// =============================================================================
 // §1  App  (ftxui/component/app.hpp)
 // =============================================================================
 ftxui_app_handle_t ftxui_app_create_fullscreen() {
@@ -428,65 +255,242 @@ void ftxui_component_destroy(ftxui_component_handle_t component) {
 }
 
 // =============================================================================
-// §19  Components — Advanced
+// §3  Loop  (ftxui/component/loop.hpp)
 // =============================================================================
 
-static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
-    switch (d) {
-        case FTXUI_DIRECTION_UP: return ftxui::Direction::Up;
-        case FTXUI_DIRECTION_DOWN: return ftxui::Direction::Down;
-        case FTXUI_DIRECTION_LEFT: return ftxui::Direction::Left;
-        case FTXUI_DIRECTION_RIGHT: return ftxui::Direction::Right;
-        default: return ftxui::Direction::Right;
-    }
-}
-
-struct FTXUIWindowWrapper {
-    std::string title;
-    ftxui::Component component;
+struct FTXUILoopWrapper {
+    ftxui::Loop loop;
+    FTXUILoopWrapper(ftxui::App* app, ftxui::Component component)
+        : loop(app, component) {}
 };
 
-ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata) {
-    auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
+ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component) {
+    auto* ftxui_app = static_cast<ftxui::App*>(app);
+    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (!ftxui_app || !wrapper) return nullptr;
+    return static_cast<ftxui_loop_handle_t>(new FTXUILoopWrapper(ftxui_app, wrapper->component));
+}
+
+bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop) {
+    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
+    return lw ? lw->loop.HasQuitted() : true;
+}
+
+void ftxui_loop_run_once(ftxui_loop_handle_t loop) {
+    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
+    if (lw) lw->loop.RunOnce();
+}
+
+void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop) {
+    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
+    if (lw) lw->loop.RunOnceBlocking();
+}
+
+void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
+    delete static_cast<FTXUILoopWrapper*>(loop);
+}
+
+ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata) {
     auto* wrapper = new FTXUIComponentWrapper();
-
-    auto render_lambda = [callback, userdata] {
-        ftxui_element_handle_t element_handle = callback(userdata);
-        ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(element_handle)->element);
-        ftxui_element_destroy(element_handle); // Use the common destroy function
-        return el;
-    };
-
-    if (inner_wrapper) {
-        wrapper->component = ftxui::Renderer(inner_wrapper->component, render_lambda);
-    } else {
-        wrapper->component = ftxui::Renderer(render_lambda);
-    }
-
+    wrapper->component = ftxui::Renderer([on_poll, userdata] {
+        if (on_poll) on_poll(userdata);
+        return ftxui::text("");
+    });
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-void ftxui_element_destroy(ftxui_element_handle_t element) {
-    auto* wrapper = static_cast<FTXUIElementWrapper*>(element);
-    delete wrapper;
+void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
+    auto* ftxui_app = static_cast<ftxui::App*>(app);
+    if (ftxui_app) {
+        ftxui_app->RequestAnimationFrame();
+    }
 }
 
-// Helper to create and wrap an ftxui::Element into an ftxui_element_handle_t
-static ftxui_element_handle_t create_element_wrapper(ftxui::Element element) {
-    auto* wrapper = new FTXUIElementWrapper();
-    wrapper->element = std::move(element);
-    return static_cast<ftxui_element_handle_t>(wrapper);
+// --- selection style decorator ---
+#include <ftxui/screen/cell.hpp>
+
+ftxui_element_handle_t ftxui_element_selection_style(
+    ftxui_element_handle_t element,
+    ftxui_cell_style_callback_t callback,
+    void* userdata
+) {
+    if (!callback) return element;
+    return apply_element_modifier(element, [callback, userdata](ftxui::Element el) {
+        return el | ftxui::selectionStyle(make_canvas_stylizer(callback, userdata));
+    });
 }
 
-// Generic helper to apply a modifier to an element and return a new wrapped element
-template <typename Modifier>
-static ftxui_element_handle_t apply_element_modifier(ftxui_element_handle_t element_handle, Modifier modifier) {
-    auto* inner_wrapper = static_cast<FTXUIElementWrapper*>(element_handle);
-    if (!inner_wrapper) return nullptr;
+// =============================================================================
+// §4  Color  (ftxui/screen/color.hpp)
+// =============================================================================
 
-    ftxui::Element el = modifier(std::move(inner_wrapper->element));
-    delete inner_wrapper;
-    return create_element_wrapper(std::move(el));
+ftxui_color_handle_t ftxui_color_default() {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color());
+}
+
+ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(r, g, b));
+}
+
+ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(r, g, b, a));
+}
+
+ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::HSV(h, s, v)));
+}
+
+ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::HSVA(h, s, v, a)));
+}
+
+ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette1>(index)));
+}
+
+ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette16>(index)));
+}
+
+ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette256>(index)));
+}
+ftxui_color_handle_t ftxui_color_palette256_raw(int index) {
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette256>(index)));
+}
+
+ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b) {
+    auto* color_a = static_cast<ftxui::Color*>(a);
+    auto* color_b = static_cast<ftxui::Color*>(b);
+    if (!color_a || !color_b) return nullptr;
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::Interpolate(t, *color_a, *color_b)));
+}
+
+ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
+    auto* color_lhs = static_cast<ftxui::Color*>(lhs);
+    auto* color_rhs = static_cast<ftxui::Color*>(rhs);
+    if (!color_lhs || !color_rhs) return nullptr;
+    return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::Blend(*color_lhs, *color_rhs)));
+}
+
+bool ftxui_color_is_opaque(ftxui_color_handle_t color) {
+    auto* ftxui_color = static_cast<ftxui::Color*>(color);
+    if (!ftxui_color) return false;
+    return ftxui_color->IsOpaque();
+}
+
+bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
+    auto* color_lhs = static_cast<ftxui::Color*>(lhs);
+    auto* color_rhs = static_cast<ftxui::Color*>(rhs);
+    if (!color_lhs || !color_rhs) return false; // Or handle as error
+    return *color_lhs == *color_rhs;
+}
+
+bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
+    auto* color_lhs = static_cast<ftxui::Color*>(lhs);
+    auto* color_rhs = static_cast<ftxui::Color*>(rhs);
+    if (!color_lhs || !color_rhs) return false; // Or handle as error
+    return *color_lhs != *color_rhs;
+}
+
+char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color) {
+    auto* ftxui_color = static_cast<ftxui::Color*>(color);
+    if (!ftxui_color) return strdup(""); // Return empty string for null color
+    std::string s = ftxui_color->Print(is_background_color);
+    return strdup(s.c_str());
+}
+
+void ftxui_color_destroy(ftxui_color_handle_t color) {
+    delete static_cast<ftxui::Color*>(color);
+}
+
+// =============================================================================
+// §5  Color Info  (ftxui/screen/color_info.hpp)
+// =============================================================================
+
+#include <ftxui/screen/color_info.hpp>
+#include <algorithm>
+
+static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
+    ftxui_color_info_t r;
+    r.index_256  = info.index_256;
+    r.index_16   = info.index_16;
+    r.name       = info.name;
+    r.red        = info.red;
+    r.green      = info.green;
+    r.blue       = info.blue;
+    r.hue        = info.hue;
+    r.saturation = info.saturation;
+    r.value      = info.value;
+    return r;
+}
+
+static const ftxui_color_info_t k_padding_entry = {-1, 0, "", 0, 0, 0, 0, 0, 0};
+
+ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
+    auto info_columns = ftxui::ColorInfoSorted2D();
+    int rows = static_cast<int>(info_columns.size());
+    int cols = 0;
+    for (auto& col : info_columns) {
+        cols = std::max(cols, static_cast<int>(col.size()));
+    }
+    *num_rows = rows;
+    *max_cols = cols;
+    if (rows == 0 || cols == 0) return nullptr;
+
+    auto* result = new ftxui_color_info_t[rows * cols];
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            int idx = r * cols + c;
+            if (c < static_cast<int>(info_columns[r].size())) {
+                result[idx] = to_c_color_info(info_columns[r][c]);
+            } else {
+                result[idx] = k_padding_entry;
+            }
+        }
+    }
+    return result;
+}
+
+void ftxui_color_info_free(ftxui_color_info_t* data) {
+    delete[] data;
+}
+
+ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) {
+    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette256)index));
+}
+
+ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) {
+    return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette16)index));
+}
+
+// =============================================================================
+// §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
+// =============================================================================
+
+ftxui_linear_gradient_handle_t ftxui_linear_gradient_create() {
+    return static_cast<ftxui_linear_gradient_handle_t>(new ftxui::LinearGradient());
+}
+
+void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient) {
+    delete static_cast<ftxui::LinearGradient*>(gradient);
+}
+
+void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle) {
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    if (g) g->Angle(angle);
+}
+
+void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color) {
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (g && col) g->Stop(*col);
+}
+
+void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position) {
+    auto* g = static_cast<ftxui::LinearGradient*>(gradient);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (g && col) g->Stop(*col, position);
 }
 
 // =============================================================================
@@ -703,240 +707,6 @@ ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element
         return std::move(el) | ftxui::underlined;
     });
  }
-
-// =============================================================================
-// §12  Elements — Frame / Scroll / Focus
-// =============================================================================
-
-ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return std::move(el) | ftxui::vscroll_indicator;
-    });
-}
-
-ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return std::move(el) | ftxui::frame;
-    });
-}
-
-ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) {
-    auto ftxui_constraint_modifier = [&](ftxui::Element el) {
-        ftxui::WidthOrHeight width_or_height;
-        ftxui::Constraint constraint;
-        switch (width_or_height_enum) {
-            case FTXUI_WIDTH_OR_HEIGHT_WIDTH: width_or_height = ftxui::WidthOrHeight::WIDTH; break;
-            case FTXUI_WIDTH_OR_HEIGHT_HEIGHT: width_or_height = ftxui::WidthOrHeight::HEIGHT; break;
-        }
-        switch (constraint_type) {
-            case FTXUI_CONSTRAINT_LESS_THAN: constraint = ftxui::Constraint::LESS_THAN; break;
-            case FTXUI_CONSTRAINT_GREATER_THAN: constraint = ftxui::Constraint::GREATER_THAN; break;
-            case FTXUI_CONSTRAINT_EQUAL: constraint = ftxui::Constraint::EQUAL; break;
-        }
-        return el | ftxui::size(width_or_height, constraint, value);
-    };
-    return apply_element_modifier(element, ftxui_constraint_modifier);
-}
-
-// =============================================================================
-// §13  Elements — Alignment & Utility
-// =============================================================================
-
-ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return ftxui::hcenter(std::move(el));
-    });
-}
-
-ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return ftxui::vcenter(std::move(el));
-    });
-}
-
-ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return ftxui::center(std::move(el));
-    });
-}
-
-ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return ftxui::align_right(std::move(el));
-    });
-}
-
-
-ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return std::move(el) | ftxui::dim;
-    });
-}
-
-ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return std::move(el) | ftxui::blink;
-    });
-}
-
-ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return std::move(el) | ftxui::strikethrough;
-    });
-}
-
-ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element) {
-    return apply_element_modifier(element, [](ftxui::Element el) {
-        return ftxui::nothing(std::move(el));
-    });
-}
-
-// -- END util elements
-
-// -- START additional elements
-
-ftxui_element_handle_t ftxui_element_vtext(const char* text) {
-    return create_element_wrapper(ftxui::vtext(text));
-}
-
-ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index) {
-    return create_element_wrapper(ftxui::spinner(charset_index, image_index));
-}
-
-ftxui_element_handle_t ftxui_element_paragraph(const char* text) {
-    return create_element_wrapper(ftxui::paragraph(text));
-}
-
-ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text) {
-    return create_element_wrapper(ftxui::paragraphAlignLeft(text));
-}
-
-ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text) {
-    return create_element_wrapper(ftxui::paragraphAlignRight(text));
-}
-
-ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text) {
-    return create_element_wrapper(ftxui::paragraphAlignCenter(text));
-}
-
-ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text) {
-    return create_element_wrapper(ftxui::paragraphAlignJustify(text));
-}
-
-ftxui_element_handle_t ftxui_element_empty() {
-    return create_element_wrapper(ftxui::emptyElement());
-}
-
-ftxui_element_handle_t ftxui_element_gauge_left(double value) {
-    return create_element_wrapper(ftxui::gaugeLeft(static_cast<float>(value)));
-}
-
-ftxui_element_handle_t ftxui_element_gauge_right(double value) {
-    return create_element_wrapper(ftxui::gaugeRight(static_cast<float>(value)));
-}
-
-ftxui_element_handle_t ftxui_element_gauge_up(double value) {
-    return create_element_wrapper(ftxui::gaugeUp(static_cast<float>(value)));
-}
-
-ftxui_element_handle_t ftxui_element_gauge_down(double value) {
-    return create_element_wrapper(ftxui::gaugeDown(static_cast<float>(value)));
-}
-
-ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction) {
-    ftxui::Direction dir;
-    switch (direction) {
-        case FTXUI_DIRECTION_UP: dir = ftxui::Direction::Up; break;
-        case FTXUI_DIRECTION_DOWN: dir = ftxui::Direction::Down; break;
-        case FTXUI_DIRECTION_LEFT: dir = ftxui::Direction::Left; break;
-        case FTXUI_DIRECTION_RIGHT: dir = ftxui::Direction::Right; break;
-        default: dir = ftxui::Direction::Right; break;
-    }
-    return create_element_wrapper(ftxui::gaugeDirection(static_cast<float>(value), dir));
-}
-
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata) {
-    if (!callback) return nullptr;
-    auto graph_fn = [callback, userdata](int width, int height) -> std::vector<int> {
-        std::vector<int> output(width, 0);
-        callback(width, height, output.data(), userdata);
-        return output;
-    };
-    return create_element_wrapper(ftxui::graph(graph_fn));
-}
-
-ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count) {
-    ftxui::Elements children;
-    for (int i = 0; i < count; ++i) {
-        auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
-        if (wrapper) {
-            children.push_back(std::move(wrapper->element));
-            delete wrapper;
-        }
-    }
-    return create_element_wrapper(ftxui::dbox(std::move(children)));
-}
-
-ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count) {
-    ftxui::Elements children;
-    for (int i = 0; i < count; ++i) {
-        auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
-        if (wrapper) {
-            children.push_back(std::move(wrapper->element));
-            delete wrapper;
-        }
-    }
-    return create_element_wrapper(ftxui::hflow(std::move(children)));
-}
-
-ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count) {
-    ftxui::Elements children;
-    for (int i = 0; i < count; ++i) {
-        auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
-        if (wrapper) {
-            children.push_back(std::move(wrapper->element));
-            delete wrapper;
-        }
-    }
-    return create_element_wrapper(ftxui::vflow(std::move(children)));
-}
-
-ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count) {
-    std::vector<std::vector<ftxui::Element>> rows;
-    int idx = 0;
-    for (int r = 0; r < row_count; r++) {
-        std::vector<ftxui::Element> row;
-        for (int c = 0; c < row_lengths[r]; c++) {
-            auto* w = static_cast<FTXUIElementWrapper*>(cells[idx++]);
-            row.push_back(std::move(w->element));
-            delete w;
-        }
-        rows.push_back(std::move(row));
-    }
-    return create_element_wrapper(ftxui::gridbox(std::move(rows)));
-}
-
-ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config) {
-    ftxui::Elements elems;
-    for (int i = 0; i < count; i++) {
-        auto* w = static_cast<FTXUIElementWrapper*>(elements[i]);
-        if (w) {
-            elems.push_back(std::move(w->element));
-            delete w;
-        }
-    }
-
-    ftxui::FlexboxConfig ftx_config;
-    ftx_config.direction = static_cast<ftxui::FlexboxConfig::Direction>(config.direction);
-    ftx_config.wrap = static_cast<ftxui::FlexboxConfig::Wrap>(config.wrap);
-    ftx_config.justify_content = static_cast<ftxui::FlexboxConfig::JustifyContent>(config.justify_content);
-    ftx_config.align_items = static_cast<ftxui::FlexboxConfig::AlignItems>(config.align_items);
-    ftx_config.align_content = static_cast<ftxui::FlexboxConfig::AlignContent>(config.align_content);
-    ftx_config.gap_x = config.gap_x;
-    ftx_config.gap_y = config.gap_y;
-
-    return create_element_wrapper(ftxui::flexbox(std::move(elems), ftx_config));
-}
 
 // =============================================================================
 // §11  Elements — Flex / Size
@@ -1243,6 +1013,805 @@ static ftxui::ButtonOption to_ftxui_button_option(ftxui_button_option_t option) 
     }
 
     return res;
+}
+
+// =============================================================================
+// §12  Elements — Frame / Scroll / Focus
+// =============================================================================
+
+ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return std::move(el) | ftxui::vscroll_indicator;
+    });
+}
+
+ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return std::move(el) | ftxui::frame;
+    });
+}
+
+ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) {
+    auto ftxui_constraint_modifier = [&](ftxui::Element el) {
+        ftxui::WidthOrHeight width_or_height;
+        ftxui::Constraint constraint;
+        switch (width_or_height_enum) {
+            case FTXUI_WIDTH_OR_HEIGHT_WIDTH: width_or_height = ftxui::WidthOrHeight::WIDTH; break;
+            case FTXUI_WIDTH_OR_HEIGHT_HEIGHT: width_or_height = ftxui::WidthOrHeight::HEIGHT; break;
+        }
+        switch (constraint_type) {
+            case FTXUI_CONSTRAINT_LESS_THAN: constraint = ftxui::Constraint::LESS_THAN; break;
+            case FTXUI_CONSTRAINT_GREATER_THAN: constraint = ftxui::Constraint::GREATER_THAN; break;
+            case FTXUI_CONSTRAINT_EQUAL: constraint = ftxui::Constraint::EQUAL; break;
+        }
+        return el | ftxui::size(width_or_height, constraint, value);
+    };
+    return apply_element_modifier(element, ftxui_constraint_modifier);
+}
+
+// =============================================================================
+// §13  Elements — Alignment & Utility
+// =============================================================================
+
+ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return ftxui::hcenter(std::move(el));
+    });
+}
+
+ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return ftxui::vcenter(std::move(el));
+    });
+}
+
+ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return ftxui::center(std::move(el));
+    });
+}
+
+ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return ftxui::align_right(std::move(el));
+    });
+}
+
+
+ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return std::move(el) | ftxui::dim;
+    });
+}
+
+ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return std::move(el) | ftxui::blink;
+    });
+}
+
+ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return std::move(el) | ftxui::strikethrough;
+    });
+}
+
+ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element) {
+    return apply_element_modifier(element, [](ftxui::Element el) {
+        return ftxui::nothing(std::move(el));
+    });
+}
+
+// -- END util elements
+
+// -- START additional elements
+
+ftxui_element_handle_t ftxui_element_vtext(const char* text) {
+    return create_element_wrapper(ftxui::vtext(text));
+}
+
+ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index) {
+    return create_element_wrapper(ftxui::spinner(charset_index, image_index));
+}
+
+ftxui_element_handle_t ftxui_element_paragraph(const char* text) {
+    return create_element_wrapper(ftxui::paragraph(text));
+}
+
+ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text) {
+    return create_element_wrapper(ftxui::paragraphAlignLeft(text));
+}
+
+ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text) {
+    return create_element_wrapper(ftxui::paragraphAlignRight(text));
+}
+
+ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text) {
+    return create_element_wrapper(ftxui::paragraphAlignCenter(text));
+}
+
+ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text) {
+    return create_element_wrapper(ftxui::paragraphAlignJustify(text));
+}
+
+ftxui_element_handle_t ftxui_element_empty() {
+    return create_element_wrapper(ftxui::emptyElement());
+}
+
+ftxui_element_handle_t ftxui_element_gauge_left(double value) {
+    return create_element_wrapper(ftxui::gaugeLeft(static_cast<float>(value)));
+}
+
+ftxui_element_handle_t ftxui_element_gauge_right(double value) {
+    return create_element_wrapper(ftxui::gaugeRight(static_cast<float>(value)));
+}
+
+ftxui_element_handle_t ftxui_element_gauge_up(double value) {
+    return create_element_wrapper(ftxui::gaugeUp(static_cast<float>(value)));
+}
+
+ftxui_element_handle_t ftxui_element_gauge_down(double value) {
+    return create_element_wrapper(ftxui::gaugeDown(static_cast<float>(value)));
+}
+
+ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction) {
+    ftxui::Direction dir;
+    switch (direction) {
+        case FTXUI_DIRECTION_UP: dir = ftxui::Direction::Up; break;
+        case FTXUI_DIRECTION_DOWN: dir = ftxui::Direction::Down; break;
+        case FTXUI_DIRECTION_LEFT: dir = ftxui::Direction::Left; break;
+        case FTXUI_DIRECTION_RIGHT: dir = ftxui::Direction::Right; break;
+        default: dir = ftxui::Direction::Right; break;
+    }
+    return create_element_wrapper(ftxui::gaugeDirection(static_cast<float>(value), dir));
+}
+
+ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata) {
+    if (!callback) return nullptr;
+    auto graph_fn = [callback, userdata](int width, int height) -> std::vector<int> {
+        std::vector<int> output(width, 0);
+        callback(width, height, output.data(), userdata);
+        return output;
+    };
+    return create_element_wrapper(ftxui::graph(graph_fn));
+}
+
+ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count) {
+    ftxui::Elements children;
+    for (int i = 0; i < count; ++i) {
+        auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
+        if (wrapper) {
+            children.push_back(std::move(wrapper->element));
+            delete wrapper;
+        }
+    }
+    return create_element_wrapper(ftxui::dbox(std::move(children)));
+}
+
+ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count) {
+    ftxui::Elements children;
+    for (int i = 0; i < count; ++i) {
+        auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
+        if (wrapper) {
+            children.push_back(std::move(wrapper->element));
+            delete wrapper;
+        }
+    }
+    return create_element_wrapper(ftxui::hflow(std::move(children)));
+}
+
+ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count) {
+    ftxui::Elements children;
+    for (int i = 0; i < count; ++i) {
+        auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
+        if (wrapper) {
+            children.push_back(std::move(wrapper->element));
+            delete wrapper;
+        }
+    }
+    return create_element_wrapper(ftxui::vflow(std::move(children)));
+}
+
+ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count) {
+    std::vector<std::vector<ftxui::Element>> rows;
+    int idx = 0;
+    for (int r = 0; r < row_count; r++) {
+        std::vector<ftxui::Element> row;
+        for (int c = 0; c < row_lengths[r]; c++) {
+            auto* w = static_cast<FTXUIElementWrapper*>(cells[idx++]);
+            row.push_back(std::move(w->element));
+            delete w;
+        }
+        rows.push_back(std::move(row));
+    }
+    return create_element_wrapper(ftxui::gridbox(std::move(rows)));
+}
+
+ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config) {
+    ftxui::Elements elems;
+    for (int i = 0; i < count; i++) {
+        auto* w = static_cast<FTXUIElementWrapper*>(elements[i]);
+        if (w) {
+            elems.push_back(std::move(w->element));
+            delete w;
+        }
+    }
+
+    ftxui::FlexboxConfig ftx_config;
+    ftx_config.direction = static_cast<ftxui::FlexboxConfig::Direction>(config.direction);
+    ftx_config.wrap = static_cast<ftxui::FlexboxConfig::Wrap>(config.wrap);
+    ftx_config.justify_content = static_cast<ftxui::FlexboxConfig::JustifyContent>(config.justify_content);
+    ftx_config.align_items = static_cast<ftxui::FlexboxConfig::AlignItems>(config.align_items);
+    ftx_config.align_content = static_cast<ftxui::FlexboxConfig::AlignContent>(config.align_content);
+    ftx_config.gap_x = config.gap_x;
+    ftx_config.gap_y = config.gap_y;
+
+    return create_element_wrapper(ftxui::flexbox(std::move(elems), ftx_config));
+}
+
+// =============================================================================
+// §14  Canvas  (ftxui/dom/canvas.hpp)
+// =============================================================================
+
+#include <ftxui/dom/canvas.hpp>
+
+ftxui_canvas_handle_t ftxui_canvas_create(int width, int height) {
+    return static_cast<ftxui_canvas_handle_t>(new ftxui::Canvas(width, height));
+}
+
+void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas) {
+    delete static_cast<ftxui::Canvas*>(canvas);
+}
+
+int ftxui_canvas_width(ftxui_canvas_handle_t canvas) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    return c ? c->width() : 0;
+}
+
+int ftxui_canvas_height(ftxui_canvas_handle_t canvas) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    return c ? c->height() : 0;
+}
+
+// Helper: build a Canvas::Stylizer from a C callback.
+// The callback receives temporary color handles it must NOT free.
+static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud) {
+    return [cb, ud](ftxui::Cell& cell) {
+        ftxui_cell_t c;
+        c.blink = cell.blink;
+        c.bold = cell.bold;
+        c.dim = cell.dim;
+        c.italic = cell.italic;
+        c.inverted = cell.inverted;
+        c.underlined = cell.underlined;
+        c.underlined_double = cell.underlined_double;
+        c.strikethrough = cell.strikethrough;
+        c.automerge = cell.automerge;
+        c.foreground_color = new ftxui::Color(cell.foreground_color);
+        c.background_color = new ftxui::Color(cell.background_color);
+        cb(&c, ud);
+        cell.blink = c.blink;
+        cell.bold = c.bold;
+        cell.dim = c.dim;
+        cell.italic = c.italic;
+        cell.inverted = c.inverted;
+        cell.underlined = c.underlined;
+        cell.underlined_double = c.underlined_double;
+        cell.strikethrough = c.strikethrough;
+        cell.automerge = c.automerge;
+        if (c.foreground_color) {
+            cell.foreground_color = *static_cast<ftxui::Color*>(c.foreground_color);
+            delete static_cast<ftxui::Color*>(c.foreground_color);
+        }
+        if (c.background_color) {
+            cell.background_color = *static_cast<ftxui::Color*>(c.background_color);
+            delete static_cast<ftxui::Color*>(c.background_color);
+        }
+    };
+}
+
+void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && text) c->DrawText(x, y, text);
+}
+
+void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && text && col) c->DrawText(x, y, text, *col);
+}
+
+void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && text && cb) c->DrawText(x, y, text, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointOn(x, y);
+}
+
+void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointOff(x, y);
+}
+
+void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointToggle(x, y);
+}
+
+void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPoint(x, y, value);
+}
+
+void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPoint(x, y, value, *col);
+}
+
+void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPoint(x, y, value, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (!c) return;
+    if (col) c->DrawPointLine(x1, y1, x2, y2, *col);
+    else c->DrawPointLine(x1, y1, x2, y2);
+}
+
+void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointCircle(x, y, radius);
+}
+
+void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointCircle(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointCircleFilled(x, y, radius);
+}
+
+void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointCircleFilled(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointEllipse(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointEllipse(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawPointEllipseFilled(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawPointEllipseFilled(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawPointEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockOn(x, y);
+}
+
+void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockOff(x, y);
+}
+
+void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockToggle(x, y);
+}
+
+void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlock(x, y, value);
+}
+
+void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlock(x, y, value, *col);
+}
+
+void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlock(x, y, value, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (!c) return;
+    if (col) c->DrawBlockLine(x1, y1, x2, y2, *col);
+    else c->DrawBlockLine(x1, y1, x2, y2);
+}
+
+void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockCircle(x, y, radius);
+}
+
+void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockCircle(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockCircleFilled(x, y, radius);
+}
+
+void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockCircleFilled(x, y, radius, *col);
+}
+
+void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockEllipse(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockEllipse(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c) c->DrawBlockEllipseFilled(x, y, rx, ry);
+}
+
+void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (c && col) c->DrawBlockEllipseFilled(x, y, rx, ry, *col);
+}
+
+void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->DrawBlockEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+}
+
+void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (c && cb) c->Style(x, y, make_canvas_stylizer(cb, userdata));
+}
+
+ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) {
+    auto* c = static_cast<ftxui::Canvas*>(canvas);
+    if (!c) return nullptr;
+    // Copy the canvas so the element owns its own data (safe even if caller destroys canvas).
+    ftxui::Canvas copy = *c;
+    return create_element_wrapper(ftxui::canvas(std::move(copy)));
+}
+
+
+// =============================================================================
+// §15  Table  (ftxui/dom/table.hpp)
+// =============================================================================
+
+#include <ftxui/dom/table.hpp>
+
+struct FTXUITableWrapper {
+    ftxui::Table table;
+};
+
+struct FTXUITableSelectionWrapper {
+    ftxui::TableSelection selection;
+};
+
+ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols) {
+    std::vector<std::vector<std::string>> data;
+    for (int r = 0; r < rows; r++) {
+        std::vector<std::string> row;
+        for (int c = 0; c < cols; c++) {
+            const char* cell = cells[r * cols + c];
+            row.push_back(cell ? cell : "");
+        }
+        data.push_back(std::move(row));
+    }
+    auto* wrapper = new FTXUITableWrapper();
+    wrapper->table = ftxui::Table(data);
+    return static_cast<ftxui_table_handle_t>(wrapper);
+}
+
+void ftxui_table_destroy(ftxui_table_handle_t table) {
+    delete static_cast<FTXUITableWrapper*>(table);
+}
+
+ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return create_element_wrapper(tw->table.Render());
+}
+
+static ftxui::BorderStyle to_ftxui_border_style(ftxui_border_style_t style) {
+    switch (style) {
+        case FTXUI_BORDER_STYLE_DASHED: return ftxui::DASHED;
+        case FTXUI_BORDER_STYLE_HEAVY:  return ftxui::HEAVY;
+        case FTXUI_BORDER_STYLE_DOUBLE: return ftxui::DOUBLE;
+        case FTXUI_BORDER_STYLE_ROUNDED: return ftxui::ROUNDED;
+        case FTXUI_BORDER_STYLE_EMPTY:  return ftxui::EMPTY;
+        default: return ftxui::LIGHT;
+    }
+}
+
+// =============================================================================
+// §16  Table Selection
+// =============================================================================
+
+ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectAll()});
+}
+
+ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRow(row)});
+}
+
+ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRows(from, to)});
+}
+
+ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectColumn(col)});
+}
+
+ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectCell(col, row)});
+}
+
+void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel) {
+    delete static_cast<FTXUITableSelectionWrapper*>(sel);
+}
+
+void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.Border(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (sw && col) {
+        ftxui::Color c = *col;
+        sw->selection.Border(to_ftxui_border_style(style), [c](ftxui::Element e) { return e | ftxui::color(c); });
+    }
+}
+
+void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.SeparatorVertical(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.Decorate(ftxui::bold);
+}
+
+void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.DecorateCells(ftxui::align_right);
+}
+
+void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (sw && col) {
+        ftxui::Color c = *col;
+        sw->selection.DecorateCells([c](ftxui::Element e) { return e | ftxui::color(c); });
+    }
+}
+
+void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    auto* col = static_cast<ftxui::Color*>(color);
+    if (sw && col) {
+        ftxui::Color c = *col;
+        sw->selection.DecorateCellsAlternateRow([c](ftxui::Element e) { return e | ftxui::color(c); }, modulo, offset);
+    }
+}
+
+ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectColumns(from, to)});
+}
+
+ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max) {
+    auto* tw = static_cast<FTXUITableWrapper*>(table);
+    if (!tw) return nullptr;
+    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRectangle(col_min, col_max, row_min, row_max)});
+}
+
+void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.BorderLeft(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.BorderRight(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.BorderTop(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.BorderBottom(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.Separator(to_ftxui_border_style(style));
+}
+
+void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw) sw->selection.SeparatorHorizontal(to_ftxui_border_style(style));
+}
+
+static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* userdata) {
+    return [cb, userdata](ftxui::Element el) -> ftxui::Element {
+        auto* in = new FTXUIElementWrapper{std::move(el)};
+        ftxui_element_handle_t out_h = cb(static_cast<ftxui_element_handle_t>(in), userdata);
+        auto* out = static_cast<FTXUIElementWrapper*>(out_h);
+        ftxui::Element result = std::move(out->element);
+        delete out;
+        return result;
+    };
+}
+
+void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.Decorate(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateAlternateRow(make_decorator(cb, userdata), modulo, shift);
+}
+
+void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateAlternateColumn(make_decorator(cb, userdata), modulo, shift);
+}
+
+void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateBorder(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateBorderLeft(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateBorderRight(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateBorderTop(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateBorderBottom(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateSeparator(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateSeparatorVertical(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateSeparatorHorizontal(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateCells(make_decorator(cb, userdata));
+}
+
+void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateCellsAlternateRow(make_decorator(cb, userdata), modulo, shift);
+}
+
+void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
+    if (sw && cb) sw->selection.DecorateCellsAlternateColumn(make_decorator(cb, userdata), modulo, shift);
 }
 
 // =============================================================================
@@ -1887,6 +2456,68 @@ ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) 
 }
 
 // =============================================================================
+// §19  Components — Advanced
+// =============================================================================
+
+static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
+    switch (d) {
+        case FTXUI_DIRECTION_UP: return ftxui::Direction::Up;
+        case FTXUI_DIRECTION_DOWN: return ftxui::Direction::Down;
+        case FTXUI_DIRECTION_LEFT: return ftxui::Direction::Left;
+        case FTXUI_DIRECTION_RIGHT: return ftxui::Direction::Right;
+        default: return ftxui::Direction::Right;
+    }
+}
+
+struct FTXUIWindowWrapper {
+    std::string title;
+    ftxui::Component component;
+};
+
+ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata) {
+    auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    auto* wrapper = new FTXUIComponentWrapper();
+
+    auto render_lambda = [callback, userdata] {
+        ftxui_element_handle_t element_handle = callback(userdata);
+        ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(element_handle)->element);
+        ftxui_element_destroy(element_handle); // Use the common destroy function
+        return el;
+    };
+
+    if (inner_wrapper) {
+        wrapper->component = ftxui::Renderer(inner_wrapper->component, render_lambda);
+    } else {
+        wrapper->component = ftxui::Renderer(render_lambda);
+    }
+
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+void ftxui_element_destroy(ftxui_element_handle_t element) {
+    auto* wrapper = static_cast<FTXUIElementWrapper*>(element);
+    delete wrapper;
+}
+
+// Helper to create and wrap an ftxui::Element into an ftxui_element_handle_t
+static ftxui_element_handle_t create_element_wrapper(ftxui::Element element) {
+    auto* wrapper = new FTXUIElementWrapper();
+    wrapper->element = std::move(element);
+    return static_cast<ftxui_element_handle_t>(wrapper);
+}
+
+// Generic helper to apply a modifier to an element and return a new wrapped element
+template <typename Modifier>
+static ftxui_element_handle_t apply_element_modifier(ftxui_element_handle_t element_handle, Modifier modifier) {
+    auto* inner_wrapper = static_cast<FTXUIElementWrapper*>(element_handle);
+    if (!inner_wrapper) return nullptr;
+
+    ftxui::Element el = modifier(std::move(inner_wrapper->element));
+    delete inner_wrapper;
+    return create_element_wrapper(std::move(el));
+}
+
+// =============================================================================
 // §20  Component Decorators
 // =============================================================================
 
@@ -2331,636 +2962,5 @@ ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t co
         return result;
     });
     return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-// =============================================================================
-// §14  Canvas  (ftxui/dom/canvas.hpp)
-// =============================================================================
-
-#include <ftxui/dom/canvas.hpp>
-
-ftxui_canvas_handle_t ftxui_canvas_create(int width, int height) {
-    return static_cast<ftxui_canvas_handle_t>(new ftxui::Canvas(width, height));
-}
-
-void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas) {
-    delete static_cast<ftxui::Canvas*>(canvas);
-}
-
-int ftxui_canvas_width(ftxui_canvas_handle_t canvas) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    return c ? c->width() : 0;
-}
-
-int ftxui_canvas_height(ftxui_canvas_handle_t canvas) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    return c ? c->height() : 0;
-}
-
-// Helper: build a Canvas::Stylizer from a C callback.
-// The callback receives temporary color handles it must NOT free.
-static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud) {
-    return [cb, ud](ftxui::Cell& cell) {
-        ftxui_cell_t c;
-        c.blink = cell.blink;
-        c.bold = cell.bold;
-        c.dim = cell.dim;
-        c.italic = cell.italic;
-        c.inverted = cell.inverted;
-        c.underlined = cell.underlined;
-        c.underlined_double = cell.underlined_double;
-        c.strikethrough = cell.strikethrough;
-        c.automerge = cell.automerge;
-        c.foreground_color = new ftxui::Color(cell.foreground_color);
-        c.background_color = new ftxui::Color(cell.background_color);
-        cb(&c, ud);
-        cell.blink = c.blink;
-        cell.bold = c.bold;
-        cell.dim = c.dim;
-        cell.italic = c.italic;
-        cell.inverted = c.inverted;
-        cell.underlined = c.underlined;
-        cell.underlined_double = c.underlined_double;
-        cell.strikethrough = c.strikethrough;
-        cell.automerge = c.automerge;
-        if (c.foreground_color) {
-            cell.foreground_color = *static_cast<ftxui::Color*>(c.foreground_color);
-            delete static_cast<ftxui::Color*>(c.foreground_color);
-        }
-        if (c.background_color) {
-            cell.background_color = *static_cast<ftxui::Color*>(c.background_color);
-            delete static_cast<ftxui::Color*>(c.background_color);
-        }
-    };
-}
-
-void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && text) c->DrawText(x, y, text);
-}
-
-void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && text && col) c->DrawText(x, y, text, *col);
-}
-
-void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && text && cb) c->DrawText(x, y, text, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointOn(x, y);
-}
-
-void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointOff(x, y);
-}
-
-void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointToggle(x, y);
-}
-
-void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPoint(x, y, value);
-}
-
-void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawPoint(x, y, value, *col);
-}
-
-void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawPoint(x, y, value, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (!c) return;
-    if (col) c->DrawPointLine(x1, y1, x2, y2, *col);
-    else c->DrawPointLine(x1, y1, x2, y2);
-}
-
-void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawPointLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointCircle(x, y, radius);
-}
-
-void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawPointCircle(x, y, radius, *col);
-}
-
-void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawPointCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointCircleFilled(x, y, radius);
-}
-
-void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawPointCircleFilled(x, y, radius, *col);
-}
-
-void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawPointCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointEllipse(x, y, rx, ry);
-}
-
-void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawPointEllipse(x, y, rx, ry, *col);
-}
-
-void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawPointEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawPointEllipseFilled(x, y, rx, ry);
-}
-
-void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawPointEllipseFilled(x, y, rx, ry, *col);
-}
-
-void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawPointEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockOn(x, y);
-}
-
-void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockOff(x, y);
-}
-
-void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockToggle(x, y);
-}
-
-void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlock(x, y, value);
-}
-
-void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawBlock(x, y, value, *col);
-}
-
-void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawBlock(x, y, value, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (!c) return;
-    if (col) c->DrawBlockLine(x1, y1, x2, y2, *col);
-    else c->DrawBlockLine(x1, y1, x2, y2);
-}
-
-void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawBlockLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockCircle(x, y, radius);
-}
-
-void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawBlockCircle(x, y, radius, *col);
-}
-
-void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawBlockCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockCircleFilled(x, y, radius);
-}
-
-void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawBlockCircleFilled(x, y, radius, *col);
-}
-
-void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawBlockCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockEllipse(x, y, rx, ry);
-}
-
-void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawBlockEllipse(x, y, rx, ry, *col);
-}
-
-void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawBlockEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c) c->DrawBlockEllipseFilled(x, y, rx, ry);
-}
-
-void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (c && col) c->DrawBlockEllipseFilled(x, y, rx, ry, *col);
-}
-
-void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->DrawBlockEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
-}
-
-void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (c && cb) c->Style(x, y, make_canvas_stylizer(cb, userdata));
-}
-
-ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) {
-    auto* c = static_cast<ftxui::Canvas*>(canvas);
-    if (!c) return nullptr;
-    // Copy the canvas so the element owns its own data (safe even if caller destroys canvas).
-    ftxui::Canvas copy = *c;
-    return create_element_wrapper(ftxui::canvas(std::move(copy)));
-}
-
-
-// =============================================================================
-// §15  Table  (ftxui/dom/table.hpp)
-// =============================================================================
-
-#include <ftxui/dom/table.hpp>
-
-struct FTXUITableWrapper {
-    ftxui::Table table;
-};
-
-struct FTXUITableSelectionWrapper {
-    ftxui::TableSelection selection;
-};
-
-ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols) {
-    std::vector<std::vector<std::string>> data;
-    for (int r = 0; r < rows; r++) {
-        std::vector<std::string> row;
-        for (int c = 0; c < cols; c++) {
-            const char* cell = cells[r * cols + c];
-            row.push_back(cell ? cell : "");
-        }
-        data.push_back(std::move(row));
-    }
-    auto* wrapper = new FTXUITableWrapper();
-    wrapper->table = ftxui::Table(data);
-    return static_cast<ftxui_table_handle_t>(wrapper);
-}
-
-void ftxui_table_destroy(ftxui_table_handle_t table) {
-    delete static_cast<FTXUITableWrapper*>(table);
-}
-
-ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return create_element_wrapper(tw->table.Render());
-}
-
-static ftxui::BorderStyle to_ftxui_border_style(ftxui_border_style_t style) {
-    switch (style) {
-        case FTXUI_BORDER_STYLE_DASHED: return ftxui::DASHED;
-        case FTXUI_BORDER_STYLE_HEAVY:  return ftxui::HEAVY;
-        case FTXUI_BORDER_STYLE_DOUBLE: return ftxui::DOUBLE;
-        case FTXUI_BORDER_STYLE_ROUNDED: return ftxui::ROUNDED;
-        case FTXUI_BORDER_STYLE_EMPTY:  return ftxui::EMPTY;
-        default: return ftxui::LIGHT;
-    }
-}
-
-// =============================================================================
-// §16  Table Selection
-// =============================================================================
-
-ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectAll()});
-}
-
-ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRow(row)});
-}
-
-ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRows(from, to)});
-}
-
-ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectColumn(col)});
-}
-
-ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectCell(col, row)});
-}
-
-void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel) {
-    delete static_cast<FTXUITableSelectionWrapper*>(sel);
-}
-
-void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.Border(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (sw && col) {
-        ftxui::Color c = *col;
-        sw->selection.Border(to_ftxui_border_style(style), [c](ftxui::Element e) { return e | ftxui::color(c); });
-    }
-}
-
-void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.SeparatorVertical(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.Decorate(ftxui::bold);
-}
-
-void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.DecorateCells(ftxui::align_right);
-}
-
-void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (sw && col) {
-        ftxui::Color c = *col;
-        sw->selection.DecorateCells([c](ftxui::Element e) { return e | ftxui::color(c); });
-    }
-}
-
-void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    auto* col = static_cast<ftxui::Color*>(color);
-    if (sw && col) {
-        ftxui::Color c = *col;
-        sw->selection.DecorateCellsAlternateRow([c](ftxui::Element e) { return e | ftxui::color(c); }, modulo, offset);
-    }
-}
-
-ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectColumns(from, to)});
-}
-
-ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max) {
-    auto* tw = static_cast<FTXUITableWrapper*>(table);
-    if (!tw) return nullptr;
-    return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRectangle(col_min, col_max, row_min, row_max)});
-}
-
-void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.BorderLeft(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.BorderRight(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.BorderTop(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.BorderBottom(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.Separator(to_ftxui_border_style(style));
-}
-
-void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw) sw->selection.SeparatorHorizontal(to_ftxui_border_style(style));
-}
-
-static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* userdata) {
-    return [cb, userdata](ftxui::Element el) -> ftxui::Element {
-        auto* in = new FTXUIElementWrapper{std::move(el)};
-        ftxui_element_handle_t out_h = cb(static_cast<ftxui_element_handle_t>(in), userdata);
-        auto* out = static_cast<FTXUIElementWrapper*>(out_h);
-        ftxui::Element result = std::move(out->element);
-        delete out;
-        return result;
-    };
-}
-
-void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.Decorate(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateAlternateRow(make_decorator(cb, userdata), modulo, shift);
-}
-
-void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateAlternateColumn(make_decorator(cb, userdata), modulo, shift);
-}
-
-void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorder(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderLeft(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderRight(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderTop(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderBottom(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateSeparator(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateSeparatorVertical(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateSeparatorHorizontal(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateCells(make_decorator(cb, userdata));
-}
-
-void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateCellsAlternateRow(make_decorator(cb, userdata), modulo, shift);
-}
-
-void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
-    auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateCellsAlternateColumn(make_decorator(cb, userdata), modulo, shift);
-}
-
-// =============================================================================
-// §3  Loop  (ftxui/component/loop.hpp)
-// =============================================================================
-
-struct FTXUILoopWrapper {
-    ftxui::Loop loop;
-    FTXUILoopWrapper(ftxui::App* app, ftxui::Component component)
-        : loop(app, component) {}
-};
-
-ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component) {
-    auto* ftxui_app = static_cast<ftxui::App*>(app);
-    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
-    if (!ftxui_app || !wrapper) return nullptr;
-    return static_cast<ftxui_loop_handle_t>(new FTXUILoopWrapper(ftxui_app, wrapper->component));
-}
-
-bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop) {
-    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
-    return lw ? lw->loop.HasQuitted() : true;
-}
-
-void ftxui_loop_run_once(ftxui_loop_handle_t loop) {
-    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
-    if (lw) lw->loop.RunOnce();
-}
-
-void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop) {
-    auto* lw = static_cast<FTXUILoopWrapper*>(loop);
-    if (lw) lw->loop.RunOnceBlocking();
-}
-
-void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
-    delete static_cast<FTXUILoopWrapper*>(loop);
-}
-
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata) {
-    auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer([on_poll, userdata] {
-        if (on_poll) on_poll(userdata);
-        return ftxui::text("");
-    });
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
-
-void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
-    auto* ftxui_app = static_cast<ftxui::App*>(app);
-    if (ftxui_app) {
-        ftxui_app->RequestAnimationFrame();
-    }
-}
-
-// --- selection style decorator ---
-#include <ftxui/screen/cell.hpp>
-
-ftxui_element_handle_t ftxui_element_selection_style(
-    ftxui_element_handle_t element,
-    ftxui_cell_style_callback_t callback,
-    void* userdata
-) {
-    if (!callback) return element;
-    return apply_element_modifier(element, [callback, userdata](ftxui::Element el) {
-        return el | ftxui::selectionStyle(make_canvas_stylizer(callback, userdata));
-    });
 }
 
