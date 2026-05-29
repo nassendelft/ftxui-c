@@ -39,6 +39,38 @@ struct FTXUIEventWrapper {
         character_str(event.is_character() ? event.character() : "") {}
 };
 
+struct FTXUIWindowWrapper {
+    std::string title;
+    ftxui::Component component;
+};
+
+static ftxui_element_handle_t create_element_wrapper(ftxui::Element element) {
+    auto* wrapper = new FTXUIElementWrapper();
+    wrapper->element = std::move(element);
+    return static_cast<ftxui_element_handle_t>(wrapper);
+}
+
+template <typename Modifier>
+static ftxui_element_handle_t apply_element_modifier(ftxui_element_handle_t element_handle, Modifier modifier) {
+    auto* inner_wrapper = static_cast<FTXUIElementWrapper*>(element_handle);
+    if (!inner_wrapper) return nullptr;
+    ftxui::Element el = modifier(std::move(inner_wrapper->element));
+    delete inner_wrapper;
+    return create_element_wrapper(std::move(el));
+}
+
+static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
+    switch (d) {
+        case FTXUI_DIRECTION_UP: return ftxui::Direction::Up;
+        case FTXUI_DIRECTION_DOWN: return ftxui::Direction::Down;
+        case FTXUI_DIRECTION_LEFT: return ftxui::Direction::Left;
+        case FTXUI_DIRECTION_RIGHT: return ftxui::Direction::Right;
+        default: return ftxui::Direction::Right;
+    }
+}
+
+static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud);
+
 // =============================================================================
 // §1  App  (ftxui/component/app.hpp)
 // =============================================================================
@@ -2459,20 +2491,7 @@ ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) 
 // §19  Components — Advanced
 // =============================================================================
 
-static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
-    switch (d) {
-        case FTXUI_DIRECTION_UP: return ftxui::Direction::Up;
-        case FTXUI_DIRECTION_DOWN: return ftxui::Direction::Down;
-        case FTXUI_DIRECTION_LEFT: return ftxui::Direction::Left;
-        case FTXUI_DIRECTION_RIGHT: return ftxui::Direction::Right;
-        default: return ftxui::Direction::Right;
-    }
-}
 
-struct FTXUIWindowWrapper {
-    std::string title;
-    ftxui::Component component;
-};
 
 ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata) {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
@@ -2499,23 +2518,6 @@ void ftxui_element_destroy(ftxui_element_handle_t element) {
     delete wrapper;
 }
 
-// Helper to create and wrap an ftxui::Element into an ftxui_element_handle_t
-static ftxui_element_handle_t create_element_wrapper(ftxui::Element element) {
-    auto* wrapper = new FTXUIElementWrapper();
-    wrapper->element = std::move(element);
-    return static_cast<ftxui_element_handle_t>(wrapper);
-}
-
-// Generic helper to apply a modifier to an element and return a new wrapped element
-template <typename Modifier>
-static ftxui_element_handle_t apply_element_modifier(ftxui_element_handle_t element_handle, Modifier modifier) {
-    auto* inner_wrapper = static_cast<FTXUIElementWrapper*>(element_handle);
-    if (!inner_wrapper) return nullptr;
-
-    ftxui::Element el = modifier(std::move(inner_wrapper->element));
-    delete inner_wrapper;
-    return create_element_wrapper(std::move(el));
-}
 
 // =============================================================================
 // §20  Component Decorators
