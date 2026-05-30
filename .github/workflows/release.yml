@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: macos-14
+            target: macos-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package
+        run: |
+          mkdir -p package/lib package/include
+          cp ftxui_c_api.h package/include/
+          cp build/libftxui_c_binding.a package/lib/
+          find build/ftxui_build -name "libftxui-*.a" -exec cp {} package/lib/ \;
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cp build/libftxui_c_binding.dylib package/lib/
+          else
+            cp build/libftxui_c_binding.so package/lib/
+          fi
+          tar -czf ftxui-c-${{ github.ref_name }}-${{ matrix.target }}.tar.gz -C package .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ftxui-c-${{ matrix.target }}
+          path: ftxui-c-*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ftxui-c-*.tar.gz
