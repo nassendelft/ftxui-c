@@ -635,7 +635,10 @@ ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_
     auto* title_wrapper = static_cast<FTXUIElementWrapper*>(title);
     if (!title_wrapper) return nullptr;
 
-    return create_element_wrapper(ftxui::window(std::move(title_wrapper->element), std::move(element_wrapper->element)));
+    auto result = create_element_wrapper(ftxui::window(std::move(title_wrapper->element), std::move(element_wrapper->element)));
+    delete title_wrapper;
+    delete element_wrapper;
+    return result;
 }
 
 // =============================================================================
@@ -664,14 +667,18 @@ ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handl
     auto* ew = static_cast<FTXUIElementWrapper*>(element);
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     if (!ew || !g) return nullptr;
-    return create_element_wrapper(ew->element | ftxui::bgcolor(*g));
+    auto result = create_element_wrapper(std::move(ew->element) | ftxui::bgcolor(*g));
+    delete ew;
+    return result;
 }
 
 ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
     auto* ew = static_cast<FTXUIElementWrapper*>(element);
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     if (!ew || !g) return nullptr;
-    return create_element_wrapper(ew->element | ftxui::color(*g));
+    auto result = create_element_wrapper(std::move(ew->element) | ftxui::color(*g));
+    delete ew;
+    return result;
 }
 
 // -- START decorators
@@ -1319,8 +1326,10 @@ static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t 
         c.underlined_double = cell.underlined_double;
         c.strikethrough = cell.strikethrough;
         c.automerge = cell.automerge;
-        c.foreground_color = new ftxui::Color(cell.foreground_color);
-        c.background_color = new ftxui::Color(cell.background_color);
+        auto* fg_handle = new ftxui::Color(cell.foreground_color);
+        auto* bg_handle = new ftxui::Color(cell.background_color);
+        c.foreground_color = fg_handle;
+        c.background_color = bg_handle;
         cb(&c, ud);
         cell.blink = c.blink;
         cell.bold = c.bold;
@@ -1333,11 +1342,17 @@ static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t 
         cell.automerge = c.automerge;
         if (c.foreground_color) {
             cell.foreground_color = *static_cast<ftxui::Color*>(c.foreground_color);
+            if (c.foreground_color != fg_handle) delete fg_handle;
             delete static_cast<ftxui::Color*>(c.foreground_color);
+        } else {
+            delete fg_handle;
         }
         if (c.background_color) {
             cell.background_color = *static_cast<ftxui::Color*>(c.background_color);
+            if (c.background_color != bg_handle) delete bg_handle;
             delete static_cast<ftxui::Color*>(c.background_color);
+        } else {
+            delete bg_handle;
         }
     };
 }
@@ -1768,6 +1783,7 @@ static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* user
         auto* in = new FTXUIElementWrapper{std::move(el)};
         ftxui_element_handle_t out_h = cb(static_cast<ftxui_element_handle_t>(in), userdata);
         auto* out = static_cast<FTXUIElementWrapper*>(out_h);
+        if (!out) return ftxui::emptyElement();
         ftxui::Element result = std::move(out->element);
         delete out;
         return result;
@@ -2312,6 +2328,7 @@ ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_
 
 ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show) {
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
+    if (!child_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Collapsible(label, child_wrapper->component, show);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2319,6 +2336,7 @@ ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_co
 
 ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show) {
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
+    if (!child_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Maybe(child_wrapper->component, show);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2337,6 +2355,7 @@ ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child
 ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* modal_wrapper = static_cast<FTXUIComponentWrapper*>(modal);
+    if (!main_wrapper || !modal_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Modal(main_wrapper->component, modal_wrapper->component, show_modal);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2395,9 +2414,10 @@ static ftxui_component_handle_t apply_component_modifier(ftxui_component_handle_
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component_handle);
     if (!inner_wrapper) return nullptr;
 
+    ftxui::Component inner_comp = inner_wrapper->component;
     auto* new_wrapper = new FTXUIComponentWrapper();
-    new_wrapper->component = ftxui::Renderer(inner_wrapper->component, [modifier, inner_wrapper] {
-        return modifier(inner_wrapper->component->Render());
+    new_wrapper->component = ftxui::Renderer(inner_comp, [modifier, inner_comp] {
+        return modifier(inner_comp->Render());
     });
     return static_cast<ftxui_component_handle_t>(new_wrapper);
 }
@@ -2406,6 +2426,7 @@ ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Renderer([callback, userdata](bool focused) {
         ftxui_element_handle_t h = callback(focused, userdata);
+        if (!h) return ftxui::emptyElement();
         ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(h)->element);
         ftxui_element_destroy(h);
         return el;
@@ -2423,6 +2444,7 @@ ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_han
         ew->element = std::move(inner_el);
         ftxui_element_handle_t inner_h = static_cast<ftxui_element_handle_t>(ew);
         ftxui_element_handle_t result_h = callback(inner_h, userdata);
+        if (!result_h) return ftxui::emptyElement();
         ftxui::Element result = std::move(static_cast<FTXUIElementWrapper*>(result_h)->element);
         delete static_cast<FTXUIElementWrapper*>(result_h);
         return result;
@@ -2497,8 +2519,9 @@ ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t compo
 
     auto render_lambda = [callback, userdata] {
         ftxui_element_handle_t element_handle = callback(userdata);
+        if (!element_handle) return ftxui::emptyElement();
         ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(element_handle)->element);
-        ftxui_element_destroy(element_handle); // Use the common destroy function
+        ftxui_element_destroy(element_handle);
         return el;
     };
 
@@ -2954,6 +2977,7 @@ ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t t
 
 ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata) {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
+    if (!inner || !callback) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::CatchEvent(inner->component, [callback, userdata](ftxui::Event event) -> bool {
         auto* ew = new FTXUIEventWrapper(std::move(event));
