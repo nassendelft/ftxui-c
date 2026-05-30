@@ -33,30 +33,20 @@ All 22 FTXUI modules are wrapped:
 
 See [API_MAPPING.md](API_MAPPING.md) for the full symbol-by-symbol mapping between the FTXUI C++ API and the ftxui-c C API.
 
-## Building
+## Installation
 
-### Prerequisites
-
-- CMake 3.12+
-- A C++17 compiler (GCC, Clang)
-
-### Steps
+### Homebrew (macOS and Linux)
 
 ```sh
-git clone --recurse-submodules https://github.com/nassendelft/ftxui-c
-cd ftxui-c
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+brew tap nassendelft/ftxui-c
+brew install ftxui-c
 ```
 
-This produces:
-- `build/libftxui_c_binding.so` — shared library
-- `build/libftxui_c_binding.a` — static library
-- `ftxui_c_api.h` — C header (in the source root)
+This installs the shared library (`libftxui_c_binding.dylib`/`.so`) and header. The shared library is self-contained — FTXUI is statically linked in at build time, so no separate FTXUI install is needed.
 
-## Using a Release
+### Pre-built releases
 
-Download a pre-built release archive for your platform from the [Releases](../../releases) page. Each archive contains:
+Download a pre-built archive for your platform from the [Releases](../../releases) page. Each archive contains:
 
 ```
 include/
@@ -69,8 +59,6 @@ lib/
   libftxui-screen.a       /
 ```
 
-### Linking
-
 **Shared library:**
 ```sh
 cc myapp.c -Iinclude -Llib -lftxui_c_binding -o myapp
@@ -82,6 +70,27 @@ cc myapp.c -Iinclude -Llib \
   -lftxui_c_binding -lftxui-component -lftxui-dom -lftxui-screen \
   -lstdc++ -o myapp
 ```
+
+### Build from source
+
+#### Prerequisites
+
+- CMake 3.12+
+- A C++17 compiler (GCC, Clang)
+
+#### Steps
+
+```sh
+git clone --recurse-submodules https://github.com/nassendelft/ftxui-c
+cd ftxui-c
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+This produces:
+- `build/libftxui_c_binding.so` — shared library
+- `build/libftxui_c_binding.a` — static library
+- `ftxui_c_api.h` — C header (in the source root)
 
 ## Example
 
