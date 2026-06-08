@@ -28,5 +28,11 @@ add_executable(test_app_api test_app_api.c)
 target_link_libraries(test_app_api PRIVATE ftxui_c_binding_shared)
 target_include_directories(test_app_api PRIVATE .)
 
+# Destructor tests
+add_executable(test_destructor test_destructor.c)
+target_link_libraries(test_destructor PRIVATE ftxui_c_binding_shared)
+target_include_directories(test_destructor PRIVATE .)
+
 enable_testing()
 add_test(NAME test_app_api COMMAND test_app_api)
+add_test(NAME test_destructor COMMAND test_destructor)

@@ -26,6 +26,74 @@ struct FTXUIComponentWrapper {
     ftxui::Component component;
 };
 
+class CleanupDecorator : public ftxui::ComponentBase {
+public:
+    CleanupDecorator(ftxui::Component component, ftxui_destructor_t destructor, void* userdata)
+        : component_(std::move(component)), destructor_(destructor), userdata_(userdata) {
+        Add(component_);
+    }
+
+    ~CleanupDecorator() override {
+        if (destructor_ && userdata_) {
+            destructor_(userdata_);
+        }
+    }
+
+    ftxui::Element OnRender() override {
+        return component_->Render();
+    }
+
+    bool OnEvent(ftxui::Event event) override {
+        return component_->OnEvent(std::move(event));
+    }
+
+    bool Focusable() const override {
+        return component_->Focusable();
+    }
+
+private:
+    ftxui::Component component_;
+    ftxui_destructor_t destructor_;
+    void* userdata_;
+};
+
+class MultiCleanupDecorator : public ftxui::ComponentBase {
+public:
+    struct Cleanup {
+        ftxui_destructor_t destructor;
+        void* userdata;
+    };
+
+    MultiCleanupDecorator(ftxui::Component component, std::vector<Cleanup> cleanups)
+        : component_(std::move(component)), cleanups_(std::move(cleanups)) {
+        Add(component_);
+    }
+
+    ~MultiCleanupDecorator() override {
+        for (auto& cleanup : cleanups_) {
+            if (cleanup.destructor && cleanup.userdata) {
+                cleanup.destructor(cleanup.userdata);
+            }
+        }
+    }
+
+    ftxui::Element OnRender() override {
+        return component_->Render();
+    }
+
+    bool OnEvent(ftxui::Event event) override {
+        return component_->OnEvent(std::move(event));
+    }
+
+    bool Focusable() const override {
+        return component_->Focusable();
+    }
+
+private:
+    ftxui::Component component_;
+    std::vector<Cleanup> cleanups_;
+};
+
 // Wrapper for Element to handle lifetime
 struct FTXUIElementWrapper {
     ftxui::Element element;
@@ -333,6 +401,31 @@ ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (
         if (on_poll) on_poll(userdata);
         return ftxui::text("");
     });
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
+ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+    auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    auto* wrapper = new FTXUIComponentWrapper();
+
+    auto render_lambda = [callback, userdata] {
+        ftxui_element_handle_t element_handle = callback(userdata);
+        ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(element_handle)->element);
+        ftxui_element_destroy(element_handle); // Use the common destroy function
+        return el;
+    };
+
+    ftxui::Component res;
+    if (inner_wrapper) {
+        res = ftxui::Renderer(inner_wrapper->component, render_lambda);
+    } else {
+        res = ftxui::Renderer(render_lambda);
+    }
+
+    if (destructor) {
+        res = ftxui::Make<CleanupDecorator>(std::move(res), destructor, userdata);
+    }
+    wrapper->component = std::move(res);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -1864,21 +1957,29 @@ void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection
 // §17  Components — Basic
 // =============================================================================
 
-ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata) {
+ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Button(label, [on_click, userdata] {
+    auto component = ftxui::Button(label, [on_click, userdata] {
         if (on_click) on_click(userdata);
     });
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_button_option_t options) {
+ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options) {
     auto* wrapper = new FTXUIComponentWrapper();
     auto opt = to_ftxui_button_option(options);
     opt.on_click = [on_click, userdata] {
         if (on_click) on_click(userdata);
     };
-    wrapper->component = ftxui::Button(label, opt.on_click, opt);
+    auto component = ftxui::Button(label, opt.on_click, opt);
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -1964,13 +2065,17 @@ ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* check
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata) {
+ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::CheckboxOption opt = ftxui::CheckboxOption::Simple();
     opt.label = label ? label : "";
     opt.checked = checked;
     if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    wrapper->component = ftxui::Checkbox(opt);
+    auto component = ftxui::Checkbox(opt);
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2031,7 +2136,18 @@ ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_
         auto ud = opts.on_enter_userdata;
         opt.on_enter = [cb, ud] { cb(ud); };
     }
-    wrapper->component = ftxui::Input(opt);
+    auto component = ftxui::Input(opt);
+    std::vector<MultiCleanupDecorator::Cleanup> cleanups;
+    if (opts.on_change_destructor && opts.on_change_userdata) {
+        cleanups.push_back({opts.on_change_destructor, opts.on_change_userdata});
+    }
+    if (opts.on_enter_destructor && opts.on_enter_userdata) {
+        cleanups.push_back({opts.on_enter_destructor, opts.on_enter_userdata});
+    }
+    if (!cleanups.empty()) {
+        component = ftxui::Make<MultiCleanupDecorator>(std::move(component), std::move(cleanups));
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2051,7 +2167,7 @@ ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, i
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata) {
+ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::SliderOption<int> opt;
     opt.value = value;
@@ -2059,11 +2175,15 @@ ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int 
     opt.max = max;
     opt.increment = increment;
     if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    wrapper->component = ftxui::Slider(opt);
+    auto component = ftxui::Slider(opt);
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata) {
+ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::SliderOption<float> opt;
     opt.value = value;
@@ -2071,7 +2191,11 @@ ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, 
     opt.max = max;
     opt.increment = increment;
     if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    wrapper->component = ftxui::Slider(opt);
+    auto component = ftxui::Slider(opt);
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2085,7 +2209,7 @@ ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int coun
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata) {
+ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::RadioboxOption opt = ftxui::RadioboxOption::Simple();
     std::vector<std::string> radio_entries;
@@ -2095,7 +2219,11 @@ ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entri
     opt.entries = std::move(radio_entries);
     opt.selected = selected;
     if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    wrapper->component = ftxui::Radiobox(opt);
+    auto component = ftxui::Radiobox(opt);
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2145,7 +2273,7 @@ ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, i
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_ud, ftxui_callback_t on_enter, void* on_enter_ud) {
+ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_ud, ftxui_destructor_t on_change_destructor, ftxui_callback_t on_enter, void* on_enter_ud, ftxui_destructor_t on_enter_destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::MenuOption opt = ftxui::MenuOption::Vertical();
     std::vector<std::string> menu_entries;
@@ -2156,7 +2284,18 @@ ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entrie
     opt.selected = selected;
     if (on_change) opt.on_change = [on_change, on_change_ud] { on_change(on_change_ud); };
     if (on_enter) opt.on_enter = [on_enter, on_enter_ud] { on_enter(on_enter_ud); };
-    wrapper->component = ftxui::Menu(opt);
+    auto component = ftxui::Menu(opt);
+    std::vector<MultiCleanupDecorator::Cleanup> cleanups;
+    if (on_change_destructor && on_change_ud) {
+        cleanups.push_back({on_change_destructor, on_change_ud});
+    }
+    if (on_enter_destructor && on_enter_ud) {
+        cleanups.push_back({on_enter_destructor, on_enter_ud});
+    }
+    if (!cleanups.empty()) {
+        component = ftxui::Make<MultiCleanupDecorator>(std::move(component), std::move(cleanups));
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2422,23 +2561,27 @@ static ftxui_component_handle_t apply_component_modifier(ftxui_component_handle_
     return static_cast<ftxui_component_handle_t>(new_wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata) {
+ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer([callback, userdata](bool focused) {
+    auto component = ftxui::Renderer([callback, userdata](bool focused) {
         ftxui_element_handle_t h = callback(focused, userdata);
         if (!h) return ftxui::emptyElement();
         ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(h)->element);
         ftxui_element_destroy(h);
         return el;
     });
+    if (destructor) {
+        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    }
+    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata) {
+ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
     ftxui::Component inner_comp = inner->component;
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer(inner_comp, [callback, userdata, inner_comp]() {
+    auto res = ftxui::Renderer(inner_comp, [callback, userdata, inner_comp]() {
         ftxui::Element inner_el = inner_comp->Render();
         auto* ew = new FTXUIElementWrapper();
         ew->element = std::move(inner_el);
@@ -2449,6 +2592,10 @@ ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_han
         delete static_cast<FTXUIElementWrapper*>(result_h);
         return result;
     });
+    if (destructor) {
+        res = ftxui::Make<CleanupDecorator>(std::move(res), destructor, userdata);
+    }
+    wrapper->component = std::move(res);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 

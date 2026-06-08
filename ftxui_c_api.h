@@ -19,6 +19,7 @@ typedef void* ftxui_event_handle_t;
 typedef ftxui_element_handle_t (*ftxui_render_callback_t)(void* userdata);
 typedef void (*ftxui_callback_t)(void* userdata);
 typedef bool (*ftxui_predicate_callback_t)(void* userdata);
+typedef void (*ftxui_destructor_t)(void* userdata);
 
 // =============================================================================
 // Forward-declared types  (used by earlier sections than their logical home)
@@ -1019,8 +1020,8 @@ typedef struct {
 } ftxui_button_option_t;
 
 // --- Button ---
-ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata);
-ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_button_option_t options);
+ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor);
+ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options);
 ftxui_button_option_t ftxui_button_option_simple();
 ftxui_button_option_t ftxui_button_option_ascii();
 ftxui_button_option_t ftxui_button_option_border();
@@ -1028,7 +1029,7 @@ ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t backgrou
 
 // --- Checkbox ---
 ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked);
-ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata);
+ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
 
 // --- Input ---
 // String handle wraps a mutable std::string for use with Input components.
@@ -1050,8 +1051,10 @@ typedef struct {
     int*                  cursor_position;
     ftxui_callback_t      on_change;
     void*                 on_change_userdata;
+    ftxui_destructor_t    on_change_destructor;
     ftxui_callback_t      on_enter;
     void*                 on_enter_userdata;
+    ftxui_destructor_t    on_enter_destructor;
 } ftxui_input_options_t;
 ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts);
 
@@ -1061,19 +1064,19 @@ ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count,
 // --- Slider ---
 ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment);
 // Slider with on_change callback (no label). Use ftxui_component_slider for a labeled variant.
-ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata);
-ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata);
+ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
+ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
 ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction);
 ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment);
 ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive);
 
 // --- Radiobox ---
 ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata);
+ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
 
 // --- Menu ---
 ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_userdata, ftxui_callback_t on_enter, void* on_enter_userdata);
+ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_userdata, ftxui_destructor_t on_change_destructor, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor);
 ftxui_component_handle_t ftxui_component_menu_entry(const char* label);
 ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors);
 ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected);
@@ -1114,13 +1117,13 @@ void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_han
 // =============================================================================
 
 // --- Renderer variants ---
-ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata);
+ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 typedef ftxui_element_handle_t (*ftxui_focused_render_callback_t)(bool focused, void* userdata);
-ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata);
+ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 typedef ftxui_element_handle_t (*ftxui_inner_render_callback_t)(ftxui_element_handle_t inner, void* userdata);
-ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata);
+ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component);
 
