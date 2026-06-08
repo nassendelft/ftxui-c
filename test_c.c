@@ -9,6 +9,21 @@ void on_button_click(void* userdata) {
     ftxui_app_exit(global_app);
 }
 
+ftxui_element_handle_t render_hello(void* userdata) {
+    (void)userdata;
+    return ftxui_element_text("Hello from C!");
+}
+
+ftxui_element_handle_t render_horizontal_label(void* userdata) {
+    (void)userdata;
+    return ftxui_element_text("This is a horizontal container:");
+}
+
+ftxui_element_handle_t render_click_label(void* userdata) {
+    (void)userdata;
+    return ftxui_element_text(" (<- click that)");
+}
+
 int main() {
     printf("Starting FTXUI C Binding Test...\n");
     
@@ -19,30 +34,31 @@ int main() {
     }
 
     ftxui_component_handle_t container = ftxui_component_container_vertical();
-    ftxui_component_handle_t label1 = ftxui_element_text("Hello from C!");
+    ftxui_component_handle_t label1 = ftxui_component_renderer(NULL, render_hello, NULL, NULL);
     
     const char* menu_items[] = {"Item 1", "Item 2", "Item 3"};
     int selected = 0;
     ftxui_component_handle_t menu = ftxui_component_menu(menu_items, 3, &selected);
 
-    ftxui_component_handle_t label2 = ftxui_element_text("This is a horizontal container:");
+    ftxui_component_handle_t label2 = ftxui_component_renderer(NULL, render_horizontal_label, NULL, NULL);
 
     ftxui_component_handle_t h_container = ftxui_component_container_horizontal();
-    ftxui_component_handle_t btn1 = ftxui_component_button("Exit", on_button_click, NULL);
-    ftxui_component_handle_t label3 = ftxui_element_text(" (<- click that)");
+    ftxui_component_handle_t btn1 = ftxui_component_button("Exit", on_button_click, NULL, NULL);
+    ftxui_component_handle_t label3 = ftxui_component_renderer(NULL, render_click_label, NULL, NULL);
 
     ftxui_container_add(h_container, btn1);
     ftxui_container_add(h_container, label3);
 
     ftxui_container_add(container, label1);
-    ftxui_container_add(container, ftxui_element_border(menu));
+    ftxui_container_add(container, ftxui_component_border(menu));
 
     bool checked = true;
     ftxui_component_handle_t checkbox = ftxui_component_checkbox("Check me", &checked);
     ftxui_container_add(container, checkbox);
 
     char input_buf[100] = "Initial text";
-    ftxui_component_handle_t input = ftxui_component_input(input_buf, "Placeholder...");
+    ftxui_string_handle_t input_str = ftxui_string_create(input_buf);
+    ftxui_component_handle_t input = ftxui_component_input(input_str, "Placeholder...");
     ftxui_container_add(container, input);
 
     const char* toggle_items[] = {"Toggle 1", "Toggle 2", "Toggle 3"};
@@ -60,17 +76,14 @@ int main() {
     ftxui_container_add(container, radio);
 
     ftxui_container_add(container, label2);
-    ftxui_container_add(container, ftxui_element_border(h_container));
+    ftxui_container_add(container, ftxui_component_border(h_container));
 
     printf("App created and components added. (Skipping loop in automated test)\n");
 
     ftxui_app_destroy(global_app);
     
-    // Note: ideally we'd destroy container too, which should destroy children if they are wrapped.
-    // In our current implementation, we might need a more robust ownership model if we were to avoid leaks.
     ftxui_component_destroy(container);
-    // h_container, labels, etc are technically leaked here if not managed.
-    // For this simple test, we just check compilation and basic flow.
+    ftxui_string_destroy(input_str);
 
     printf("Test finished successfully.\n");
     return 0;
