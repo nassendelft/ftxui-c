@@ -677,7 +677,7 @@ static void test_component_callbacks(void) {
     // Checkbox with on_change
     bool checked = false;
     bool cb_called = false;
-    ftxui_component_handle_t chk = ftxui_component_checkbox_with_change("chk", &checked, set_flag, &cb_called);
+    ftxui_component_handle_t chk = ftxui_component_checkbox_with_change("chk", &checked, set_flag, &cb_called, NULL);
     assert(chk != NULL);
     ftxui_component_destroy(chk);
 
@@ -695,9 +695,10 @@ static void test_component_callbacks(void) {
     opts.insert = &insert;
     opts.cursor_position = &cursor;
     opts.on_change = set_flag;
-    opts.on_change_userdata = &on_change_called;
+    opts.on_change_destructor = NULL;
     opts.on_enter = set_flag;
     opts.on_enter_userdata = &on_enter_called;
+    opts.on_enter_destructor = NULL;
     ftxui_component_handle_t inp = ftxui_component_input_with_options(opts);
     assert(inp != NULL);
     ftxui_component_destroy(inp);
@@ -707,27 +708,27 @@ static void test_component_callbacks(void) {
     const char* entries[] = {"a", "b", "c"};
     int selected = 0;
     bool radio_cb = false;
-    ftxui_component_handle_t rb = ftxui_component_radiobox_with_change(entries, 3, &selected, set_flag, &radio_cb);
+    ftxui_component_handle_t rb = ftxui_component_radiobox_with_change(entries, 3, &selected, set_flag, &radio_cb, NULL);
     assert(rb != NULL);
     ftxui_component_destroy(rb);
 
     // Menu with callbacks
     bool menu_change_called = false;
     bool menu_enter_called = false;
-    ftxui_component_handle_t mn = ftxui_component_menu_with_callbacks(entries, 3, &selected, set_flag, &menu_change_called, set_flag, &menu_enter_called);
+    ftxui_component_handle_t mn = ftxui_component_menu_with_callbacks(entries, 3, &selected, set_flag, &menu_change_called, NULL, set_flag, &menu_enter_called, NULL);
     assert(mn != NULL);
     ftxui_component_destroy(mn);
 
     // Slider int with on_change
     int ival = 50;
     bool slider_cb = false;
-    ftxui_component_handle_t sl = ftxui_component_slider_int_with_change(&ival, 0, 100, 5, set_flag, &slider_cb);
+    ftxui_component_handle_t sl = ftxui_component_slider_int_with_change(&ival, 0, 100, 5, set_flag, &slider_cb, NULL);
     assert(sl != NULL);
     ftxui_component_destroy(sl);
 
     // Slider float with on_change
     float fval = 0.5f;
-    ftxui_component_handle_t slfl = ftxui_component_slider_float_with_change(&fval, 0.0f, 1.0f, 0.05f, set_flag, &slider_cb);
+    ftxui_component_handle_t slfl = ftxui_component_slider_float_with_change(&fval, 0.0f, 1.0f, 0.05f, set_flag, &slider_cb, NULL);
     assert(slfl != NULL);
     ftxui_component_destroy(slfl);
 
@@ -749,7 +750,7 @@ static void test_container_with_selector(void) {
     assert(h != NULL);
 
     // Add a child to verify it works
-    ftxui_component_handle_t child = ftxui_component_button("X", noop, NULL);
+    ftxui_component_handle_t child = ftxui_component_button("X", noop, NULL, NULL);
     assert(child != NULL);
     ftxui_container_add(v, child);
     ftxui_container_add(h, child);
@@ -797,7 +798,7 @@ static bool always_false(void* ud) { (void)ud; return false; }
 static void test_maybe_fn(void) {
     printf("test_maybe_fn...");
 
-    ftxui_component_handle_t child = ftxui_component_button("test", noop, NULL);
+    ftxui_component_handle_t child = ftxui_component_button("test", noop, NULL, NULL);
     assert(child != NULL);
 
     ftxui_component_handle_t m1 = ftxui_component_maybe_fn(child, always_true, NULL);
@@ -805,7 +806,7 @@ static void test_maybe_fn(void) {
     ftxui_component_destroy(m1);
 
     // Re-create child since it was moved into m1
-    child = ftxui_component_button("test", noop, NULL);
+    child = ftxui_component_button("test", noop, NULL, NULL);
     ftxui_component_handle_t m2 = ftxui_component_maybe_fn(child, always_false, NULL);
     assert(m2 != NULL);
     ftxui_component_destroy(m2);
@@ -830,14 +831,14 @@ static void test_hoverable_callbacks(void) {
     bool enter_called = false;
     bool leave_called = false;
 
-    base = ftxui_component_button("btn", noop, NULL);
+    base = ftxui_component_button("btn", noop, NULL, NULL);
     assert(base != NULL);
     ftxui_component_handle_t hov1 = ftxui_component_hoverable_callbacks(base, set_flag, &enter_called, set_flag, &leave_called);
     assert(hov1 != NULL);
     ftxui_component_destroy(hov1);
 
     // ftxui_component_hoverable_change with a proper callback
-    base = ftxui_component_button("btn2", noop, NULL);
+    base = ftxui_component_button("btn2", noop, NULL, NULL);
     assert(base != NULL);
     bool hover_state = false;
     ftxui_component_handle_t hov2 = ftxui_component_hoverable_change(base, on_hover_change, &hover_state);
