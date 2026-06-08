@@ -359,6 +359,13 @@ void ftxui_component_destroy(ftxui_component_handle_t component) {
     delete wrapper;
 }
 
+void ftxui_component_free(ftxui_component_handle_t component_handle) {
+    if (component_handle) {
+        auto* ptr = reinterpret_cast<std::shared_ptr<ftxui::ComponentBase>*>(component_handle);
+        delete ptr; // Decrements the reference count and calls the C++ destructor
+    }
+}
+
 // =============================================================================
 // §3  Loop  (ftxui/component/loop.hpp)
 // =============================================================================

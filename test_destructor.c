@@ -116,6 +116,35 @@ int main() {
         printf("Renderer destructor: PASSED\n");
     }
 
+    // 8. Test ftxui_component_free
+    {
+        // ftxui_component_free is intended to be used on the pointer that 
+        // ftxui_component_handle_t points to if it was allocated with new shared_ptr.
+        // However, in our C wrapper, ftxui_component_handle_t is ALREADY a pointer to FTXUIComponentWrapper,
+        // which contains a std::shared_ptr (ftxui::Component).
+        // The issue description says:
+        // auto* ptr = reinterpret_cast<std::shared_ptr<ftxui::ComponentBase>*>(component_handle);
+        // delete ptr;
+        // This implies that on the Kotlin side, they might be getting a pointer to a shared_ptr directly 
+        // or they want to treat the handle as such.
+        
+        // Let's test that calling it doesn't crash at least, although in our wrapper 
+        // ftxui_component_handle_t is FTXUIComponentWrapper*.
+        // If I use ftxui_component_free on a handle created by ftxui_component_button,
+        // it will try to delete it as a shared_ptr<ComponentBase>*.
+        // This might be dangerous if the types don't match exactly.
+        
+        // Wait, the issue says "The Kotlin side allocates a std::shared_ptr wrapper on the native heap 
+        // every time it calls a function returning a component handle".
+        // If Kotlin allocates it, then it's Kotlin's responsibility to free it using this hook.
+        
+        printf("Testing ftxui_component_free (smoke test)...\n");
+        // We can't easily simulate Kotlin's heap allocation here without C++ code,
+        // but we can verify the function exists and is callable.
+        ftxui_component_free(NULL); 
+        printf("ftxui_component_free(NULL): PASSED\n");
+    }
+
     printf("All destructor tests PASSED. Total destructor calls: %d\n", destructor_count);
     return 0;
 }

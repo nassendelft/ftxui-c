@@ -1185,6 +1185,7 @@ typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* u
 ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata);
 
 void ftxui_component_destroy(ftxui_component_handle_t component);
+void ftxui_component_free(ftxui_component_handle_t component);
 
 // =============================================================================
 // §20  Component Decorators
