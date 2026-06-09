@@ -1138,6 +1138,13 @@ ftxui_component_handle_t ftxui_component_container_tab(int* selected);
 ftxui_component_handle_t ftxui_component_container_stacked();
 void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_handle_t child);
 
+// --- Component Focus & Active State API ---
+bool ftxui_component_focused(ftxui_component_handle_t component);
+bool ftxui_component_active(ftxui_component_handle_t component);
+void ftxui_component_take_focus(ftxui_component_handle_t component);
+ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t component);
+void ftxui_component_set_active_child(ftxui_component_handle_t component, ftxui_component_handle_t child);
+
 // =============================================================================
 // §19  Components — Advanced
 // =============================================================================

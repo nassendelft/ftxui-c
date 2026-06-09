@@ -3094,3 +3094,41 @@ ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t co
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
+// --- Component Focus & Active State API ---
+bool ftxui_component_focused(ftxui_component_handle_t component) {
+    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (!wrapper || !wrapper->component) return false;
+    return wrapper->component->Focused();
+}
+
+bool ftxui_component_active(ftxui_component_handle_t component) {
+    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (!wrapper || !wrapper->component) return false;
+    return wrapper->component->Active();
+}
+
+void ftxui_component_take_focus(ftxui_component_handle_t component) {
+    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (wrapper && wrapper->component) {
+        wrapper->component->TakeFocus();
+    }
+}
+
+ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t component) {
+    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    if (!wrapper || !wrapper->component) return nullptr;
+    auto child = wrapper->component->ActiveChild();
+    if (!child) return nullptr;
+    auto* child_wrapper = new FTXUIComponentWrapper();
+    child_wrapper->component = child;
+    return static_cast<ftxui_component_handle_t>(child_wrapper);
+}
+
+void ftxui_component_set_active_child(ftxui_component_handle_t component, ftxui_component_handle_t child) {
+    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
+    if (wrapper && wrapper->component && child_wrapper && child_wrapper->component) {
+        wrapper->component->SetActiveChild(child_wrapper->component);
+    }
+}
+
