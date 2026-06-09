@@ -8,8 +8,11 @@
 extern "C" {
 #endif
 
+// Forward declaration of the wrapper struct
+struct ftxui_app_wrapper;
+
 // Opaque handles
-typedef void* ftxui_app_handle_t;
+typedef struct ftxui_app_wrapper* ftxui_app_handle_t; // Changed
 typedef void* ftxui_component_handle_t;
 typedef void* ftxui_element_handle_t;
 typedef void* ftxui_color_handle_t;
@@ -115,7 +118,7 @@ void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force);
 /**
  * @brief Post a closure to be executed on the main loop thread. Safe to call from any thread.
  */
-void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Post an event to the main loop. The event is copied.
@@ -125,7 +128,7 @@ void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event);
 /**
  * @brief Execute callback with the terminal temporarily restored to its original state.
  */
-void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Return the currently active app handle, or NULL if none is running.
@@ -183,7 +186,7 @@ void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle);
 /**
  * @brief Registers a callback invoked whenever the terminal text selection changes.
  */
-void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata);
+void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Returns the currently selected text. Caller must free() the returned string.
@@ -866,7 +869,9 @@ int ftxui_canvas_height(ftxui_canvas_handle_t canvas);
 void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text);
 void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color);
 // Draws text with a stylizer callback. The callback may modify cell style/color fields.
-// The foreground_color and background_color fields in ftxui_cell_t are temporary handles — do NOT free them.
+// The foreground_color and background_color fields in ftxui_cell_t are temporary handles —
+// the callback may read or replace them (setting to NULL leaves the color unchanged), but must NOT
+// call ftxui_color_destroy() on the handles it receives.
 void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata);
 // Boolean point drawing (braille characters)
 void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y);
@@ -1017,6 +1022,7 @@ typedef struct {
     ftxui_animated_colors_option_t animated_colors;
     ftxui_button_transform_t transform;
     void* transform_userdata;
+    ftxui_destructor_t transform_destructor;
 } ftxui_button_option_t;
 
 // --- Button ---
@@ -1096,8 +1102,8 @@ typedef ftxui_element_handle_t (*ftxui_dropdown_transform_callback_t)(
 // entry_transform may be null (uses default radiobox entry rendering).
 ftxui_component_handle_t ftxui_component_dropdown_custom(
     const char** entries, int count, int* selected,
-    ftxui_dropdown_transform_callback_t transform, void* transform_userdata,
-    ftxui_button_transform_t entry_transform, void* entry_transform_userdata
+    ftxui_dropdown_transform_callback_t transform, void* transform_userdata, ftxui_destructor_t transform_destructor,
+    ftxui_button_transform_t entry_transform, void* entry_transform_userdata, ftxui_destructor_t entry_transform_destructor
 );
 
 // =============================================================================
@@ -1130,12 +1136,12 @@ ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component
 /**
  * @brief Creates a component that calls on_poll on every render frame. C-only; no FTXUI equivalent.
  */
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t app, void (*on_poll)(void*), void* userdata);
+ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t app, void (*on_poll)(void*), void* userdata, ftxui_destructor_t destructor);
 
 // --- Visibility ---
 ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show);
 ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show);
-ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata);
+ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata, ftxui_destructor_t destructor);
 ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal);
 
 // --- ResizableSplit ---
@@ -1155,6 +1161,7 @@ typedef struct {
     int* max_size;
     ftxui_separator_func_t separator_func;
     void* separator_userdata;
+    ftxui_destructor_t separator_destructor;
 } ftxui_resizable_split_option_t;
 
 ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option);
@@ -1177,12 +1184,12 @@ ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options);
 
 // --- Hoverable ---
 ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover);
-ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_callback_t on_leave, void* on_leave_userdata);
-ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata);
+ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor, ftxui_callback_t on_leave, void* on_leave_userdata, ftxui_destructor_t on_leave_destructor);
+ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata, ftxui_destructor_t destructor);
 
 // --- CatchEvent ---
 typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* userdata);
-ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata);
+ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 void ftxui_component_destroy(ftxui_component_handle_t component);
 void ftxui_component_free(ftxui_component_handle_t component);

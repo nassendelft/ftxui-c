@@ -420,7 +420,7 @@ static void test_selection_api(void) {
     assert(sel != NULL);
     free(sel);
 
-    ftxui_app_selection_change(app, noop, NULL);
+    ftxui_app_selection_change(app, noop, NULL, NULL);
 
     ftxui_app_destroy(app);
     printf(" OK\n");
@@ -458,7 +458,7 @@ static void test_app_post(void) {
     assert(loop != NULL);
 
     bool called = false;
-    ftxui_app_post(app, set_flag, &called);
+    ftxui_app_post(app, set_flag, &called, NULL);
     ftxui_loop_run_once(loop);
     assert(called);
 
@@ -506,10 +506,10 @@ static void test_null_safety(void) {
     ftxui_app_handle_piped_input(NULL, true);
     ftxui_app_force_handle_ctrl_c(NULL, true);
     ftxui_app_force_handle_ctrl_z(NULL, true);
-    ftxui_app_post(NULL, noop, NULL);
+    ftxui_app_post(NULL, noop, NULL, NULL);
 
     // NULL callback with valid app — must not crash
-    ftxui_app_post(app, NULL, NULL);
+    ftxui_app_post(app, NULL, NULL, NULL);
 
     // Terminal info with NULL app — must return safe defaults
     assert(strcmp(ftxui_app_terminal_name(NULL), "") == 0);
@@ -779,7 +779,7 @@ static void test_loop_run_once_blocking(void) {
 
     // Post a callback so the blocking call has an event to process and returns.
     bool called = false;
-    ftxui_app_post(app, set_flag, &called);
+    ftxui_app_post(app, set_flag, &called, NULL);
     ftxui_loop_run_once_blocking(loop);
     assert(called);
 
@@ -801,18 +801,18 @@ static void test_maybe_fn(void) {
     ftxui_component_handle_t child = ftxui_component_button("test", noop, NULL, NULL);
     assert(child != NULL);
 
-    ftxui_component_handle_t m1 = ftxui_component_maybe_fn(child, always_true, NULL);
+    ftxui_component_handle_t m1 = ftxui_component_maybe_fn(child, always_true, NULL, NULL);
     assert(m1 != NULL);
     ftxui_component_destroy(m1);
 
     // Re-create child since it was moved into m1
     child = ftxui_component_button("test", noop, NULL, NULL);
-    ftxui_component_handle_t m2 = ftxui_component_maybe_fn(child, always_false, NULL);
+    ftxui_component_handle_t m2 = ftxui_component_maybe_fn(child, always_false, NULL, NULL);
     assert(m2 != NULL);
     ftxui_component_destroy(m2);
 
     // NULL safety
-    assert(ftxui_component_maybe_fn(NULL, always_true, NULL) == NULL);
+    assert(ftxui_component_maybe_fn(NULL, always_true, NULL, NULL) == NULL);
 
     printf(" OK\n");
 }
@@ -833,7 +833,7 @@ static void test_hoverable_callbacks(void) {
 
     base = ftxui_component_button("btn", noop, NULL, NULL);
     assert(base != NULL);
-    ftxui_component_handle_t hov1 = ftxui_component_hoverable_callbacks(base, set_flag, &enter_called, set_flag, &leave_called);
+    ftxui_component_handle_t hov1 = ftxui_component_hoverable_callbacks(base, set_flag, &enter_called, NULL, set_flag, &leave_called, NULL);
     assert(hov1 != NULL);
     ftxui_component_destroy(hov1);
 
@@ -841,13 +841,13 @@ static void test_hoverable_callbacks(void) {
     base = ftxui_component_button("btn2", noop, NULL, NULL);
     assert(base != NULL);
     bool hover_state = false;
-    ftxui_component_handle_t hov2 = ftxui_component_hoverable_change(base, on_hover_change, &hover_state);
+    ftxui_component_handle_t hov2 = ftxui_component_hoverable_change(base, on_hover_change, &hover_state, NULL);
     assert(hov2 != NULL);
     ftxui_component_destroy(hov2);
 
     // NULL safety
-    assert(ftxui_component_hoverable_callbacks(NULL, NULL, NULL, NULL, NULL) == NULL);
-    assert(ftxui_component_hoverable_change(NULL, NULL, NULL) == NULL);
+    assert(ftxui_component_hoverable_callbacks(NULL, NULL, NULL, NULL, NULL, NULL, NULL) == NULL);
+    assert(ftxui_component_hoverable_change(NULL, NULL, NULL, NULL) == NULL);
 
     printf(" OK\n");
 }

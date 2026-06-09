@@ -26,73 +26,37 @@ struct FTXUIComponentWrapper {
     ftxui::Component component;
 };
 
-class CleanupDecorator : public ftxui::ComponentBase {
-public:
-    CleanupDecorator(ftxui::Component component, ftxui_destructor_t destructor, void* userdata)
-        : component_(std::move(component)), destructor_(destructor), userdata_(userdata) {
-        Add(component_);
-    }
-
-    ~CleanupDecorator() override {
-        if (destructor_ && userdata_) {
-            destructor_(userdata_);
-        }
-    }
-
-    ftxui::Element OnRender() override {
-        return component_->Render();
-    }
-
-    bool OnEvent(ftxui::Event event) override {
-        return component_->OnEvent(std::move(event));
-    }
-
-    bool Focusable() const override {
-        return component_->Focusable();
-    }
-
-private:
-    ftxui::Component component_;
-    ftxui_destructor_t destructor_;
-    void* userdata_;
+struct ftxui_app_wrapper : ftxui::App {
+    ftxui_app_wrapper(ftxui::App&& other) : ftxui::App(std::move(other)) {}
 };
 
-class MultiCleanupDecorator : public ftxui::ComponentBase {
-public:
-    struct Cleanup {
-        ftxui_destructor_t destructor;
-        void* userdata;
-    };
+struct CallbackCleanup {
+    ftxui_destructor_t destructor;
+    void* userdata;
 
-    MultiCleanupDecorator(ftxui::Component component, std::vector<Cleanup> cleanups)
-        : component_(std::move(component)), cleanups_(std::move(cleanups)) {
-        Add(component_);
-    }
+    CallbackCleanup(ftxui_destructor_t dest, void* ud)
+        : destructor(dest), userdata(ud) {}
 
-    ~MultiCleanupDecorator() override {
-        for (auto& cleanup : cleanups_) {
-            if (cleanup.destructor && cleanup.userdata) {
-                cleanup.destructor(cleanup.userdata);
-            }
+    ~CallbackCleanup() {
+        if (destructor && userdata) {
+            destructor(userdata);
         }
     }
-
-    ftxui::Element OnRender() override {
-        return component_->Render();
-    }
-
-    bool OnEvent(ftxui::Event event) override {
-        return component_->OnEvent(std::move(event));
-    }
-
-    bool Focusable() const override {
-        return component_->Focusable();
-    }
-
-private:
-    ftxui::Component component_;
-    std::vector<Cleanup> cleanups_;
 };
+
+struct ComponentCleanup {
+    ftxui::Component original;
+    std::shared_ptr<CallbackCleanup> cleanup;
+};
+
+static ftxui::Component attach_destructor(ftxui::Component component, ftxui_destructor_t destructor, void* userdata) {
+    if (!destructor || !userdata) return component;
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    auto holder = std::make_shared<ComponentCleanup>();
+    holder->original = std::move(component);
+    holder->cleanup = std::move(cleanup);
+    return ftxui::Component(holder, holder->original.get());
+}
 
 // Wrapper for Element to handle lifetime
 struct FTXUIElementWrapper {
@@ -149,7 +113,7 @@ static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t 
 // =============================================================================
 ftxui_app_handle_t ftxui_app_create_fullscreen() {
     try {
-        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::Fullscreen()));
+        return new ftxui_app_wrapper(ftxui::App::Fullscreen());
     } catch (...) {
         return nullptr;
     }
@@ -157,7 +121,7 @@ ftxui_app_handle_t ftxui_app_create_fullscreen() {
 
 ftxui_app_handle_t ftxui_app_create_fit_component() {
     try {
-        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FitComponent()));
+        return new ftxui_app_wrapper(ftxui::App::FitComponent());
     } catch (...) {
         return nullptr;
     }
@@ -165,7 +129,7 @@ ftxui_app_handle_t ftxui_app_create_fit_component() {
 
 ftxui_app_handle_t ftxui_app_create_terminal_output() {
     try {
-        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::TerminalOutput()));
+        return new ftxui_app_wrapper(ftxui::App::TerminalOutput());
     } catch (...) {
         return nullptr;
     }
@@ -173,7 +137,7 @@ ftxui_app_handle_t ftxui_app_create_terminal_output() {
 
 ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h) {
     try {
-        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FixedSize(w, h)));
+        return new ftxui_app_wrapper(ftxui::App::FixedSize(w, h));
     } catch (...) {
         return nullptr;
     }
@@ -181,7 +145,7 @@ ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h) {
 
 ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen() {
     try {
-        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FullscreenPrimaryScreen()));
+        return new ftxui_app_wrapper(ftxui::App::FullscreenPrimaryScreen());
     } catch (...) {
         return nullptr;
     }
@@ -189,16 +153,17 @@ ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen() {
 
 ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen() {
     try {
-        return static_cast<ftxui_app_handle_t>(new ftxui::App(ftxui::App::FullscreenAlternateScreen()));
+        return new ftxui_app_wrapper(ftxui::App::FullscreenAlternateScreen());
     } catch (...) {
         return nullptr;
     }
 }
 
-void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
+void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     if (ftxui_app && callback) {
-        ftxui_app->SelectionChange([callback, userdata] { callback(userdata); });
+        auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+        ftxui_app->SelectionChange([callback, userdata, cleanup] { callback(userdata); });
     }
 }
 
@@ -267,8 +232,8 @@ void ftxui_app_exit(ftxui_app_handle_t app) {
 }
 
 void ftxui_app_destroy(ftxui_app_handle_t app) {
-    auto* ftxui_app = static_cast<ftxui::App*>(app);
-    delete ftxui_app;
+    auto* wrapper = static_cast<ftxui_app_wrapper*>(app);
+    delete wrapper;
 }
 
 void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable) {
@@ -291,9 +256,14 @@ void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force) {
     if (a) a->ForceHandleCtrlZ(force);
 }
 
-void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
+void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* a = static_cast<ftxui::App*>(app);
-    if (a && callback) a->Post([callback, userdata] { callback(userdata); });
+    if (a) {
+        a->Post([callback, userdata, destructor] {
+            if (callback) callback(userdata);
+            if (destructor) destructor(userdata);
+        });
+    }
 }
 
 void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event) {
@@ -302,13 +272,18 @@ void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event) {
     if (a && w) a->PostEvent(w->event);
 }
 
-void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata) {
+void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* a = static_cast<ftxui::App*>(app);
-    if (a && callback) a->WithRestoredIO([callback, userdata] { callback(userdata); })();
+    if (a && callback) {
+        a->WithRestoredIO([callback, userdata] { callback(userdata); })();
+    }
+    if (destructor) {
+        destructor(userdata);
+    }
 }
 
 ftxui_app_handle_t ftxui_app_active() {
-    return static_cast<ftxui_app_handle_t>(ftxui::App::Active());
+    return static_cast<ftxui_app_handle_t>(static_cast<ftxui_app_wrapper*>(ftxui::App::Active()));
 }
 
 const char* ftxui_app_terminal_name(ftxui_app_handle_t app) {
@@ -361,8 +336,8 @@ void ftxui_component_destroy(ftxui_component_handle_t component) {
 
 void ftxui_component_free(ftxui_component_handle_t component_handle) {
     if (component_handle) {
-        auto* ptr = reinterpret_cast<std::shared_ptr<ftxui::ComponentBase>*>(component_handle);
-        delete ptr; // Decrements the reference count and calls the C++ destructor
+        auto* wrapper = static_cast<FTXUIComponentWrapper*>(component_handle);
+        delete wrapper;
     }
 }
 
@@ -402,9 +377,10 @@ void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
     delete static_cast<FTXUILoopWrapper*>(loop);
 }
 
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata) {
+ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Renderer([on_poll, userdata] {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    wrapper->component = ftxui::Renderer([on_poll, userdata, cleanup] {
         if (on_poll) on_poll(userdata);
         return ftxui::text("");
     });
@@ -413,26 +389,22 @@ ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (
 
 ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
+    ftxui::Component inner_comp = inner_wrapper ? inner_wrapper->component : nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
-
-    auto render_lambda = [callback, userdata] {
-        ftxui_element_handle_t element_handle = callback(userdata);
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    auto render_lambda = [callback, userdata, inner_comp, cleanup]() {
+        auto* element_handle = callback(userdata);
+        if (!element_handle) return ftxui::emptyElement();
         ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(element_handle)->element);
         ftxui_element_destroy(element_handle); // Use the common destroy function
         return el;
     };
 
-    ftxui::Component res;
     if (inner_wrapper) {
-        res = ftxui::Renderer(inner_wrapper->component, render_lambda);
+        wrapper->component = ftxui::Renderer(inner_wrapper->component, render_lambda);
     } else {
-        res = ftxui::Renderer(render_lambda);
+        wrapper->component = ftxui::Renderer(render_lambda);
     }
-
-    if (destructor) {
-        res = ftxui::Make<CleanupDecorator>(std::move(res), destructor, userdata);
-    }
-    wrapper->component = std::move(res);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -1142,7 +1114,8 @@ static ftxui::ButtonOption to_ftxui_button_option(ftxui_button_option_t option) 
     res.animated_colors = to_ftxui_animated_colors(option.animated_colors);
 
     if (option.transform) {
-        res.transform = [option](const ftxui::EntryState& state) {
+        auto cleanup = std::make_shared<CallbackCleanup>(option.transform_destructor, option.transform_userdata);
+        res.transform = [option, cleanup](const ftxui::EntryState& state) {
             ftxui_entry_state_t c_state = to_ftxui_c_entry_state(state);
             ftxui_element_handle_t handle = option.transform(c_state, option.transform_userdata);
             if (!handle) return ftxui::text(state.label);
@@ -1966,27 +1939,21 @@ void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection
 
 ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
-    auto component = ftxui::Button(label, [on_click, userdata] {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    wrapper->component = ftxui::Button(label, [on_click, userdata, cleanup] {
         if (on_click) on_click(userdata);
     });
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
-    }
-    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
 ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options) {
     auto* wrapper = new FTXUIComponentWrapper();
     auto opt = to_ftxui_button_option(options);
-    opt.on_click = [on_click, userdata] {
+    auto click_cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    opt.on_click = [on_click, userdata, click_cleanup] {
         if (on_click) on_click(userdata);
     };
-    auto component = ftxui::Button(label, opt.on_click, opt);
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
-    }
-    wrapper->component = std::move(component);
+    wrapper->component = ftxui::Button(label, opt.on_click, opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2077,12 +2044,13 @@ ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label,
     ftxui::CheckboxOption opt = ftxui::CheckboxOption::Simple();
     opt.label = label ? label : "";
     opt.checked = checked;
-    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    auto component = ftxui::Checkbox(opt);
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    if (on_change) {
+        auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+        opt.on_change = [on_change, userdata, cleanup] { on_change(userdata); };
+        wrapper->component = ftxui::Checkbox(opt);
+    } else {
+        wrapper->component = attach_destructor(ftxui::Checkbox(opt), destructor, userdata);
     }
-    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2136,25 +2104,22 @@ ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_
     if (opts.on_change) {
         auto cb = opts.on_change;
         auto ud = opts.on_change_userdata;
-        opt.on_change = [cb, ud] { cb(ud); };
+        auto cleanup = std::make_shared<CallbackCleanup>(opts.on_change_destructor, ud);
+        opt.on_change = [cb, ud, cleanup] { cb(ud); };
+    } else if (opts.on_change_destructor && opts.on_change_userdata) {
+        auto cleanup = std::make_shared<CallbackCleanup>(opts.on_change_destructor, opts.on_change_userdata);
+        opt.on_change = [cleanup] {};
     }
     if (opts.on_enter) {
         auto cb = opts.on_enter;
         auto ud = opts.on_enter_userdata;
-        opt.on_enter = [cb, ud] { cb(ud); };
+        auto cleanup = std::make_shared<CallbackCleanup>(opts.on_enter_destructor, ud);
+        opt.on_enter = [cb, ud, cleanup] { cb(ud); };
+    } else if (opts.on_enter_destructor && opts.on_enter_userdata) {
+        auto cleanup = std::make_shared<CallbackCleanup>(opts.on_enter_destructor, opts.on_enter_userdata);
+        opt.on_enter = [cleanup] {};
     }
-    auto component = ftxui::Input(opt);
-    std::vector<MultiCleanupDecorator::Cleanup> cleanups;
-    if (opts.on_change_destructor && opts.on_change_userdata) {
-        cleanups.push_back({opts.on_change_destructor, opts.on_change_userdata});
-    }
-    if (opts.on_enter_destructor && opts.on_enter_userdata) {
-        cleanups.push_back({opts.on_enter_destructor, opts.on_enter_userdata});
-    }
-    if (!cleanups.empty()) {
-        component = ftxui::Make<MultiCleanupDecorator>(std::move(component), std::move(cleanups));
-    }
-    wrapper->component = std::move(component);
+    wrapper->component = ftxui::Input(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2181,12 +2146,13 @@ ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int 
     opt.min = min;
     opt.max = max;
     opt.increment = increment;
-    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    auto component = ftxui::Slider(opt);
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    if (on_change) {
+        auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+        opt.on_change = [on_change, userdata, cleanup] { on_change(userdata); };
+        wrapper->component = ftxui::Slider(opt);
+    } else {
+        wrapper->component = attach_destructor(ftxui::Slider(opt), destructor, userdata);
     }
-    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2197,12 +2163,13 @@ ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, 
     opt.min = min;
     opt.max = max;
     opt.increment = increment;
-    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    auto component = ftxui::Slider(opt);
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    if (on_change) {
+        auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+        opt.on_change = [on_change, userdata, cleanup] { on_change(userdata); };
+        wrapper->component = ftxui::Slider(opt);
+    } else {
+        wrapper->component = attach_destructor(ftxui::Slider(opt), destructor, userdata);
     }
-    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2221,16 +2188,17 @@ ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entri
     ftxui::RadioboxOption opt = ftxui::RadioboxOption::Simple();
     std::vector<std::string> radio_entries;
     for (int i = 0; i < count; ++i) {
-        radio_entries.push_back(entries[i]);
+        radio_entries.push_back(entries[i] ? entries[i] : "");
     }
     opt.entries = std::move(radio_entries);
     opt.selected = selected;
-    if (on_change) opt.on_change = [on_change, userdata] { on_change(userdata); };
-    auto component = ftxui::Radiobox(opt);
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
+    if (on_change) {
+        auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+        opt.on_change = [on_change, userdata, cleanup] { on_change(userdata); };
+        wrapper->component = ftxui::Radiobox(opt);
+    } else {
+        wrapper->component = attach_destructor(ftxui::Radiobox(opt), destructor, userdata);
     }
-    wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2285,24 +2253,25 @@ ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entrie
     ftxui::MenuOption opt = ftxui::MenuOption::Vertical();
     std::vector<std::string> menu_entries;
     for (int i = 0; i < count; ++i) {
-        menu_entries.push_back(entries[i]);
+        menu_entries.push_back(entries[i] ? entries[i] : "");
     }
     opt.entries = std::move(menu_entries);
     opt.selected = selected;
-    if (on_change) opt.on_change = [on_change, on_change_ud] { on_change(on_change_ud); };
-    if (on_enter) opt.on_enter = [on_enter, on_enter_ud] { on_enter(on_enter_ud); };
-    auto component = ftxui::Menu(opt);
-    std::vector<MultiCleanupDecorator::Cleanup> cleanups;
-    if (on_change_destructor && on_change_ud) {
-        cleanups.push_back({on_change_destructor, on_change_ud});
+    if (on_change) {
+        auto cleanup = std::make_shared<CallbackCleanup>(on_change_destructor, on_change_ud);
+        opt.on_change = [on_change, on_change_ud, cleanup] { on_change(on_change_ud); };
+    } else if (on_change_destructor && on_change_ud) {
+        auto cleanup = std::make_shared<CallbackCleanup>(on_change_destructor, on_change_ud);
+        opt.on_change = [cleanup] {};
     }
-    if (on_enter_destructor && on_enter_ud) {
-        cleanups.push_back({on_enter_destructor, on_enter_ud});
+    if (on_enter) {
+        auto cleanup = std::make_shared<CallbackCleanup>(on_enter_destructor, on_enter_ud);
+        opt.on_enter = [on_enter, on_enter_ud, cleanup] { on_enter(on_enter_ud); };
+    } else if (on_enter_destructor && on_enter_ud) {
+        auto cleanup = std::make_shared<CallbackCleanup>(on_enter_destructor, on_enter_ud);
+        opt.on_enter = [cleanup] {};
     }
-    if (!cleanups.empty()) {
-        component = ftxui::Make<MultiCleanupDecorator>(std::move(component), std::move(cleanups));
-    }
-    wrapper->component = std::move(component);
+    wrapper->component = ftxui::Menu(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
@@ -2388,8 +2357,8 @@ ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int c
 
 ftxui_component_handle_t ftxui_component_dropdown_custom(
     const char** entries, int count, int* selected,
-    ftxui_dropdown_transform_callback_t transform, void* transform_userdata,
-    ftxui_button_transform_t entry_transform, void* entry_transform_userdata
+    ftxui_dropdown_transform_callback_t transform, void* transform_userdata, ftxui_destructor_t transform_destructor,
+    ftxui_button_transform_t entry_transform, void* entry_transform_userdata, ftxui_destructor_t entry_transform_destructor
 ) {
     std::vector<std::string> v;
     for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
@@ -2399,7 +2368,8 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
     if (selected) opt.radiobox.selected = selected;
 
     if (transform) {
-        opt.transform = [transform, transform_userdata](bool open, ftxui::Element checkbox, ftxui::Element radiobox) -> ftxui::Element {
+        auto cleanup = std::make_shared<CallbackCleanup>(transform_destructor, transform_userdata);
+        opt.transform = [transform, transform_userdata, cleanup](bool open, ftxui::Element checkbox, ftxui::Element radiobox) -> ftxui::Element {
             auto* cb = new FTXUIElementWrapper();
             cb->element = checkbox;
             auto* rb = new FTXUIElementWrapper();
@@ -2420,7 +2390,8 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
     }
 
     if (entry_transform) {
-        opt.radiobox.transform = [entry_transform, entry_transform_userdata](const ftxui::EntryState& state) -> ftxui::Element {
+        auto cleanup = std::make_shared<CallbackCleanup>(entry_transform_destructor, entry_transform_userdata);
+        opt.radiobox.transform = [entry_transform, entry_transform_userdata, cleanup](const ftxui::EntryState& state) -> ftxui::Element {
             ftxui_entry_state_t c_state = to_ftxui_c_entry_state(state);
             ftxui_element_handle_t h = entry_transform(c_state, entry_transform_userdata);
             if (!h) return ftxui::text(state.label);
@@ -2488,11 +2459,12 @@ ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, c
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata) {
+ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata, ftxui_destructor_t destructor) {
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
     if (!child_wrapper || !predicate) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::Maybe(child_wrapper->component, [predicate, userdata]() -> bool {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    wrapper->component = ftxui::Maybe(child_wrapper->component, [predicate, userdata, cleanup]() -> bool {
         return predicate(userdata);
     });
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2524,25 +2496,28 @@ ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t comp
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_ud, ftxui_callback_t on_leave, void* on_leave_ud) {
+ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor, ftxui_callback_t on_leave, void* on_leave_userdata, ftxui_destructor_t on_leave_destructor) {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
+    auto enter_cleanup = std::make_shared<CallbackCleanup>(on_enter_destructor, on_enter_userdata);
+    auto leave_cleanup = std::make_shared<CallbackCleanup>(on_leave_destructor, on_leave_userdata);
     wrapper->component = ftxui::Hoverable(
         inner_wrapper->component,
-        [on_enter, on_enter_ud] { if (on_enter) on_enter(on_enter_ud); },
-        [on_leave, on_leave_ud] { if (on_leave) on_leave(on_leave_ud); }
+        [on_enter, on_enter_userdata, enter_cleanup] { if (on_enter) on_enter(on_enter_userdata); },
+        [on_leave, on_leave_userdata, leave_cleanup] { if (on_leave) on_leave(on_leave_userdata); }
     );
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata) {
+ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata, ftxui_destructor_t destructor) {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner_wrapper || !on_change) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
     wrapper->component = ftxui::Hoverable(
         inner_wrapper->component,
-        [on_change, userdata](bool hovered) { on_change(hovered, userdata); }
+        [on_change, userdata, cleanup](bool hovered) { on_change(hovered, userdata); }
     );
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
@@ -2570,16 +2545,14 @@ static ftxui_component_handle_t apply_component_modifier(ftxui_component_handle_
 
 ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     auto* wrapper = new FTXUIComponentWrapper();
-    auto component = ftxui::Renderer([callback, userdata](bool focused) {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    auto component = ftxui::Renderer([callback, userdata, cleanup](bool focused) {
         ftxui_element_handle_t h = callback(focused, userdata);
         if (!h) return ftxui::emptyElement();
         ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(h)->element);
         ftxui_element_destroy(h);
         return el;
     });
-    if (destructor) {
-        component = ftxui::Make<CleanupDecorator>(std::move(component), destructor, userdata);
-    }
     wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
@@ -2588,7 +2561,8 @@ ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_han
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
     ftxui::Component inner_comp = inner->component;
     auto* wrapper = new FTXUIComponentWrapper();
-    auto res = ftxui::Renderer(inner_comp, [callback, userdata, inner_comp]() {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    auto res = ftxui::Renderer(inner_comp, [callback, userdata, inner_comp, cleanup]() {
         ftxui::Element inner_el = inner_comp->Render();
         auto* ew = new FTXUIElementWrapper();
         ew->element = std::move(inner_el);
@@ -2599,9 +2573,6 @@ ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_han
         delete static_cast<FTXUIElementWrapper*>(result_h);
         return result;
     });
-    if (destructor) {
-        res = ftxui::Make<CleanupDecorator>(std::move(res), destructor, userdata);
-    }
     wrapper->component = std::move(res);
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
@@ -2620,7 +2591,8 @@ ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_spl
     if (option.separator_func) {
         auto func = option.separator_func;
         auto userdata = option.separator_userdata;
-        opt.separator_func = [func, userdata]() -> ftxui::Element {
+        auto cleanup = std::make_shared<CallbackCleanup>(option.separator_destructor, userdata);
+        opt.separator_func = [func, userdata, cleanup]() -> ftxui::Element {
             auto* w = static_cast<FTXUIElementWrapper*>(func(userdata));
             auto elem = std::move(w->element);
             delete w;
@@ -3129,11 +3101,12 @@ ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t t
     }
 }
 
-ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata) {
+ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner || !callback) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
-    wrapper->component = ftxui::CatchEvent(inner->component, [callback, userdata](ftxui::Event event) -> bool {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    wrapper->component = ftxui::CatchEvent(inner->component, [callback, userdata, cleanup](ftxui::Event event) -> bool {
         auto* ew = new FTXUIEventWrapper(std::move(event));
         bool result = callback(static_cast<ftxui_event_handle_t>(ew), userdata);
         delete ew;
