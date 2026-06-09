@@ -12,12 +12,33 @@ extern "C" {
 struct ftxui_app_wrapper;
 
 // Opaque handles
-typedef struct ftxui_app_wrapper* ftxui_app_handle_t; // Changed
+#ifdef __cplusplus
+typedef struct ftxui_app_wrapper* ftxui_app_handle_t;
 typedef void* ftxui_component_handle_t;
 typedef void* ftxui_element_handle_t;
 typedef void* ftxui_color_handle_t;
 typedef void* ftxui_captured_mouse_handle_t;
 typedef void* ftxui_event_handle_t;
+typedef void* ftxui_loop_handle_t;
+typedef void* ftxui_linear_gradient_handle_t;
+typedef void* ftxui_canvas_handle_t;
+typedef void* ftxui_table_handle_t;
+typedef void* ftxui_table_selection_handle_t;
+typedef void* ftxui_string_handle_t;
+#else
+typedef struct ftxui_app_wrapper* ftxui_app_handle_t;
+typedef struct ftxui_component* ftxui_component_handle_t;
+typedef struct ftxui_element* ftxui_element_handle_t;
+typedef struct ftxui_color* ftxui_color_handle_t;
+typedef struct ftxui_captured_mouse* ftxui_captured_mouse_handle_t;
+typedef struct ftxui_event* ftxui_event_handle_t;
+typedef struct ftxui_loop* ftxui_loop_handle_t;
+typedef struct ftxui_linear_gradient* ftxui_linear_gradient_handle_t;
+typedef struct ftxui_canvas* ftxui_canvas_handle_t;
+typedef struct ftxui_table* ftxui_table_handle_t;
+typedef struct ftxui_table_selection* ftxui_table_selection_handle_t;
+typedef struct ftxui_string* ftxui_string_handle_t;
+#endif
 
 typedef ftxui_element_handle_t (*ftxui_render_callback_t)(void* userdata);
 typedef void (*ftxui_callback_t)(void* userdata);
@@ -258,7 +279,7 @@ void ftxui_terminal_set_quirks(ftxui_quirks_t quirks);
 // §3  Loop  (ftxui/component/loop.hpp)
 // =============================================================================
 
-typedef void* ftxui_loop_handle_t;
+
 ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component);
 bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop);
 void ftxui_loop_run_once(ftxui_loop_handle_t loop);
@@ -604,7 +625,7 @@ ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index);
 // §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
 // =============================================================================
 
-typedef void* ftxui_linear_gradient_handle_t;
+
 ftxui_linear_gradient_handle_t ftxui_linear_gradient_create();
 void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient);
 void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle);
@@ -644,7 +665,7 @@ ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index)
 
 // The callback fills `output` (pre-allocated array of `width` ints) with graph values [0..height].
 typedef void (*ftxui_graph_callback_t)(int width, int height, int* output, void* userdata);
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata);
+ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Wraps an element with a window title bar.
@@ -794,7 +815,7 @@ ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_
 ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
 ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
 ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_selection_style(ftxui_element_handle_t element, ftxui_cell_style_callback_t callback, void* userdata);
+ftxui_element_handle_t ftxui_element_selection_style(ftxui_element_handle_t element, ftxui_cell_style_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 // =============================================================================
 // §11  Elements — Flex / Size
@@ -861,7 +882,7 @@ ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element)
 // §14  Canvas  (ftxui/dom/canvas.hpp)
 // =============================================================================
 
-typedef void* ftxui_canvas_handle_t;
+
 ftxui_canvas_handle_t ftxui_canvas_create(int width, int height);
 void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas);
 int ftxui_canvas_width(ftxui_canvas_handle_t canvas);
@@ -930,8 +951,7 @@ ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas);
 // §15  Table  (ftxui/dom/table.hpp)
 // =============================================================================
 
-typedef void* ftxui_table_handle_t;
-typedef void* ftxui_table_selection_handle_t;
+
 
 // A C-callable decorator: receives an owned element handle, returns a new one.
 // The input handle is consumed by the call — do not free it separately.
@@ -968,20 +988,20 @@ void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel
 void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
 
 // Generic decorator callbacks
-void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata);
-void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
-void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift);
+void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
 
 // Convenience shortcuts
 void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel);
@@ -1039,7 +1059,7 @@ ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label,
 
 // --- Input ---
 // String handle wraps a mutable std::string for use with Input components.
-typedef void* ftxui_string_handle_t;
+
 ftxui_string_handle_t ftxui_string_create(const char* initial);
 const char* ftxui_string_get(ftxui_string_handle_t str);
 void ftxui_string_set(ftxui_string_handle_t str, const char* value);
@@ -1192,7 +1212,6 @@ typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* u
 ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 void ftxui_component_destroy(ftxui_component_handle_t component);
-void ftxui_component_free(ftxui_component_handle_t component);
 
 // =============================================================================
 // §20  Component Decorators

@@ -251,7 +251,7 @@ static void test_table_api(void) {
     {
         ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
         ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
-        ftxui_table_selection_decorate(sel, bold_decorator, NULL);
+        ftxui_table_selection_decorate(sel, bold_decorator, NULL, NULL);
         ftxui_table_selection_destroy(sel);
 
         ftxui_element_handle_t el = ftxui_table_render(t);
@@ -264,7 +264,7 @@ static void test_table_api(void) {
     {
         ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
         ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
-        ftxui_table_selection_decorate_cells(sel, bold_decorator, NULL);
+        ftxui_table_selection_decorate_cells(sel, bold_decorator, NULL, NULL);
         ftxui_table_selection_destroy(sel);
 
         ftxui_element_handle_t el = ftxui_table_render(t);
@@ -277,7 +277,7 @@ static void test_table_api(void) {
     {
         ftxui_table_handle_t t = ftxui_table_create(cells, 2, 2);
         ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
-        ftxui_table_selection_decorate_cells_alternate_row(sel, bold_decorator, NULL, 2, 0);
+        ftxui_table_selection_decorate_cells_alternate_row(sel, bold_decorator, NULL, 2, 0, NULL);
         ftxui_table_selection_destroy(sel);
 
         ftxui_element_handle_t el = ftxui_table_render(t);

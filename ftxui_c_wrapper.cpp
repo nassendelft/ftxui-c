@@ -106,7 +106,7 @@ static ftxui::Direction to_ftxui_direction(ftxui_direction_t d) {
     }
 }
 
-static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud);
+static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud, ftxui_destructor_t destructor = nullptr);
 
 // =============================================================================
 // §1  App  (ftxui/component/app.hpp)
@@ -259,9 +259,9 @@ void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force) {
 void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
     auto* a = static_cast<ftxui::App*>(app);
     if (a) {
-        a->Post([callback, userdata, destructor] {
+        auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+        a->Post([callback, userdata, cleanup] {
             if (callback) callback(userdata);
-            if (destructor) destructor(userdata);
         });
     }
 }
@@ -330,13 +330,8 @@ void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle) {
 }
 
 void ftxui_component_destroy(ftxui_component_handle_t component) {
-    auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
-    delete wrapper;
-}
-
-void ftxui_component_free(ftxui_component_handle_t component_handle) {
-    if (component_handle) {
-        auto* wrapper = static_cast<FTXUIComponentWrapper*>(component_handle);
+    if (component) {
+        auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
         delete wrapper;
     }
 }
@@ -420,11 +415,12 @@ void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
 ftxui_element_handle_t ftxui_element_selection_style(
     ftxui_element_handle_t element,
     ftxui_cell_style_callback_t callback,
-    void* userdata
+    void* userdata,
+    ftxui_destructor_t destructor
 ) {
     if (!callback) return element;
-    return apply_element_modifier(element, [callback, userdata](ftxui::Element el) {
-        return el | ftxui::selectionStyle(make_canvas_stylizer(callback, userdata));
+    return apply_element_modifier(element, [callback, userdata, destructor](ftxui::Element el) {
+        return el | ftxui::selectionStyle(make_canvas_stylizer(callback, userdata, destructor));
     });
 }
 
@@ -1280,9 +1276,10 @@ ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_directi
     return create_element_wrapper(ftxui::gaugeDirection(static_cast<float>(value), dir));
 }
 
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata) {
+ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     if (!callback) return nullptr;
-    auto graph_fn = [callback, userdata](int width, int height) -> std::vector<int> {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    auto graph_fn = [callback, userdata, cleanup](int width, int height) -> std::vector<int> {
         std::vector<int> output(width, 0);
         callback(width, height, output.data(), userdata);
         return output;
@@ -1387,8 +1384,9 @@ int ftxui_canvas_height(ftxui_canvas_handle_t canvas) {
 
 // Helper: build a Canvas::Stylizer from a C callback.
 // The callback receives temporary color handles it must NOT free.
-static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud) {
-    return [cb, ud](ftxui::Cell& cell) {
+static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t cb, void* ud, ftxui_destructor_t destructor) {
+    auto cleanup = destructor ? std::make_shared<CallbackCleanup>(destructor, ud) : nullptr;
+    return [cb, ud, cleanup](ftxui::Cell& cell) {
         ftxui_cell_t c;
         c.blink = cell.blink;
         c.bold = cell.bold;
@@ -1851,8 +1849,9 @@ void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t s
     if (sw) sw->selection.SeparatorHorizontal(to_ftxui_border_style(style));
 }
 
-static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* userdata) {
-    return [cb, userdata](ftxui::Element el) -> ftxui::Element {
+static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    return [cb, userdata, cleanup](ftxui::Element el) -> ftxui::Element {
         auto* in = new FTXUIElementWrapper{std::move(el)};
         ftxui_element_handle_t out_h = cb(static_cast<ftxui_element_handle_t>(in), userdata);
         auto* out = static_cast<FTXUIElementWrapper*>(out_h);
@@ -1863,74 +1862,74 @@ static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* user
     };
 }
 
-void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.Decorate(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.Decorate(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateAlternateRow(make_decorator(cb, userdata), modulo, shift);
+    if (sw && cb) sw->selection.DecorateAlternateRow(make_decorator(cb, userdata, destructor), modulo, shift);
 }
 
-void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateAlternateColumn(make_decorator(cb, userdata), modulo, shift);
+    if (sw && cb) sw->selection.DecorateAlternateColumn(make_decorator(cb, userdata, destructor), modulo, shift);
 }
 
-void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorder(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateBorder(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderLeft(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateBorderLeft(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderRight(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateBorderRight(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderTop(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateBorderTop(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateBorderBottom(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateBorderBottom(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateSeparator(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateSeparator(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateSeparatorVertical(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateSeparatorVertical(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateSeparatorHorizontal(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateSeparatorHorizontal(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata) {
+void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateCells(make_decorator(cb, userdata));
+    if (sw && cb) sw->selection.DecorateCells(make_decorator(cb, userdata, destructor));
 }
 
-void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateCellsAlternateRow(make_decorator(cb, userdata), modulo, shift);
+    if (sw && cb) sw->selection.DecorateCellsAlternateRow(make_decorator(cb, userdata, destructor), modulo, shift);
 }
 
-void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift) {
+void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
-    if (sw && cb) sw->selection.DecorateCellsAlternateColumn(make_decorator(cb, userdata), modulo, shift);
+    if (sw && cb) sw->selection.DecorateCellsAlternateColumn(make_decorator(cb, userdata, destructor), modulo, shift);
 }
 
 // =============================================================================
@@ -2639,26 +2638,6 @@ ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) 
 
 
 
-ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata) {
-    auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
-    auto* wrapper = new FTXUIComponentWrapper();
-
-    auto render_lambda = [callback, userdata] {
-        ftxui_element_handle_t element_handle = callback(userdata);
-        if (!element_handle) return ftxui::emptyElement();
-        ftxui::Element el = std::move(static_cast<FTXUIElementWrapper*>(element_handle)->element);
-        ftxui_element_destroy(element_handle);
-        return el;
-    };
-
-    if (inner_wrapper) {
-        wrapper->component = ftxui::Renderer(inner_wrapper->component, render_lambda);
-    } else {
-        wrapper->component = ftxui::Renderer(render_lambda);
-    }
-
-    return static_cast<ftxui_component_handle_t>(wrapper);
-}
 
 void ftxui_element_destroy(ftxui_element_handle_t element) {
     auto* wrapper = static_cast<FTXUIElementWrapper*>(element);

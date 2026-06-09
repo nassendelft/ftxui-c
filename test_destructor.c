@@ -14,6 +14,11 @@ void dummy_callback(void* userdata) {
     (void)userdata;
 }
 
+static ftxui_element_handle_t bold_test_decorator(ftxui_element_handle_t el, void* userdata) {
+    (void)userdata;
+    return ftxui_element_bold(el);
+}
+
 int main() {
     printf("Running destructor verification tests...\n");
 
@@ -116,33 +121,48 @@ int main() {
         printf("Renderer destructor: PASSED\n");
     }
 
-    // 8. Test ftxui_component_free
+    // 8. Test ftxui_component_destroy with NULL
     {
-        // ftxui_component_free is intended to be used on the pointer that 
-        // ftxui_component_handle_t points to if it was allocated with new shared_ptr.
-        // However, in our C wrapper, ftxui_component_handle_t is ALREADY a pointer to FTXUIComponentWrapper,
-        // which contains a std::shared_ptr (ftxui::Component).
-        // The issue description says:
-        // auto* ptr = reinterpret_cast<std::shared_ptr<ftxui::ComponentBase>*>(component_handle);
-        // delete ptr;
-        // This implies that on the Kotlin side, they might be getting a pointer to a shared_ptr directly 
-        // or they want to treat the handle as such.
+        printf("Testing ftxui_component_destroy(NULL) (smoke test)...\n");
+        ftxui_component_destroy(NULL); 
+        printf("ftxui_component_destroy(NULL): PASSED\n");
+    }
+
+    // 9. Test Table Selection Decorator Destructor
+    {
+        int local_count = 0;
+        const char* cells[] = {"A"};
+        ftxui_table_handle_t t = ftxui_table_create(cells, 1, 1);
+        ftxui_table_selection_handle_t sel = ftxui_table_select_all(t);
         
-        // Let's test that calling it doesn't crash at least, although in our wrapper 
-        // ftxui_component_handle_t is FTXUIComponentWrapper*.
-        // If I use ftxui_component_free on a handle created by ftxui_component_button,
-        // it will try to delete it as a shared_ptr<ComponentBase>*.
-        // This might be dangerous if the types don't match exactly.
+        ftxui_table_selection_decorate(sel, bold_test_decorator, &local_count, mock_destructor);
+        assert(local_count == 1); // Callback is executed synchronously and decorator destroyed immediately
+        ftxui_table_selection_destroy(sel);
+        ftxui_table_destroy(t);
+        printf("Table selection decorator destructor: PASSED\n");
+    }
+
+    // 10. Test Selection Style Destructor
+    {
+        int local_count = 0;
+        ftxui_element_handle_t text = ftxui_element_text("Hello");
+        ftxui_element_handle_t styled = ftxui_element_selection_style(text, (ftxui_cell_style_callback_t)dummy_callback, &local_count, mock_destructor);
         
-        // Wait, the issue says "The Kotlin side allocates a std::shared_ptr wrapper on the native heap 
-        // every time it calls a function returning a component handle".
-        // If Kotlin allocates it, then it's Kotlin's responsibility to free it using this hook.
+        assert(local_count == 0);
+        ftxui_element_destroy(styled); // Destroying the element destroys selectionStyle and triggers cleanup
+        assert(local_count == 1);
+        printf("Selection style decorator destructor: PASSED\n");
+    }
+
+    // 11. Test Graph Destructor
+    {
+        int local_count = 0;
+        ftxui_element_handle_t graph = ftxui_element_graph((ftxui_graph_callback_t)dummy_callback, &local_count, mock_destructor);
         
-        printf("Testing ftxui_component_free (smoke test)...\n");
-        // We can't easily simulate Kotlin's heap allocation here without C++ code,
-        // but we can verify the function exists and is callable.
-        ftxui_component_free(NULL); 
-        printf("ftxui_component_free(NULL): PASSED\n");
+        assert(local_count == 0);
+        ftxui_element_destroy(graph); // Destroying the graph element triggers cleanup
+        assert(local_count == 1);
+        printf("Graph element destructor: PASSED\n");
     }
 
     printf("All destructor tests PASSED. Total destructor calls: %d\n", destructor_count);
