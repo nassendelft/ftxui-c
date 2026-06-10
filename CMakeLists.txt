@@ -42,3 +42,15 @@ target_include_directories(test_destructor PRIVATE .)
 enable_testing()
 add_test(NAME test_app_api COMMAND test_app_api)
 add_test(NAME test_destructor COMMAND test_destructor)
+
+# Install rules. FTXUI installs its own libraries and headers via its
+# FTXUI_ENABLE_INSTALL option (ON by default), which static consumers
+# of ftxui_c_binding need at link time.
+include(GNUInstallDirs)
+
+install(TARGETS ftxui_c_binding_shared ftxui_c_binding_static
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+install(FILES ftxui_c_api.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
