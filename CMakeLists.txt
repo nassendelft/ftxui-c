@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.12)
 project(ftxui_c_binding)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Kotlin/Native links the static libraries (this binding + the FTXUI archives
+# shipped in releases) into PIE executables and shared objects, so every
+# object must be position independent.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Add FTXUI as a subdirectory
 add_subdirectory(vendor/ftxui ftxui_build)

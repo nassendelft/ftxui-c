@@ -1330,6 +1330,7 @@ ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int 
         std::vector<ftxui::Element> row;
         for (int c = 0; c < row_lengths[r]; c++) {
             auto* w = static_cast<FTXUIElementWrapper*>(cells[idx++]);
+            if (!w) continue;
             row.push_back(std::move(w->element));
             delete w;
         }
@@ -2075,6 +2076,7 @@ void ftxui_string_destroy(ftxui_string_handle_t str) {
 
 ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder) {
     auto* str_wrapper = static_cast<FTXUIStringWrapper*>(content);
+    if (!str_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     std::string ph = placeholder ? placeholder : "";
     wrapper->component = ftxui::Input(&str_wrapper->value, ph);
@@ -2082,6 +2084,7 @@ ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, co
 }
 ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder) {
     auto* str_wrapper = static_cast<FTXUIStringWrapper*>(content);
+    if (!str_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     std::string ph = placeholder ? placeholder : "";
     ftxui::InputOption opt;
@@ -2126,7 +2129,7 @@ ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count,
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> toggle_entries;
     for (int i = 0; i < count; ++i) {
-        toggle_entries.push_back(entries[i]);
+        toggle_entries.push_back(entries[i] ? entries[i] : "");
     }
     wrapper->component = ftxui::Toggle(std::move(toggle_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2176,7 +2179,7 @@ ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int coun
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> radio_entries;
     for (int i = 0; i < count; ++i) {
-        radio_entries.push_back(entries[i]);
+        radio_entries.push_back(entries[i] ? entries[i] : "");
     }
     wrapper->component = ftxui::Radiobox(std::move(radio_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2241,7 +2244,7 @@ ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, i
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> menu_entries;
     for (int i = 0; i < count; ++i) {
-        menu_entries.push_back(entries[i]);
+        menu_entries.push_back(entries[i] ? entries[i] : "");
     }
     wrapper->component = ftxui::Menu(std::move(menu_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2284,7 +2287,7 @@ ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int coun
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> dropdown_entries;
     for (int i = 0; i < count; ++i) {
-        dropdown_entries.push_back(entries[i]);
+        dropdown_entries.push_back(entries[i] ? entries[i] : "");
     }
     wrapper->component = ftxui::Dropdown(std::move(dropdown_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2325,7 +2328,7 @@ ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, fl
 ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected) {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> v;
-    for (int i = 0; i < count; ++i) v.push_back(entries[i]);
+    for (int i = 0; i < count; ++i) v.push_back(entries[i] ? entries[i] : "");
     wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Horizontal());
     return static_cast<ftxui_component_handle_t>(wrapper);
 }
@@ -2382,6 +2385,7 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
             );
 
             auto* rw = static_cast<FTXUIElementWrapper*>(result_h);
+            if (!rw) return ftxui::vbox({std::move(checkbox), std::move(radiobox)});
             ftxui::Element result = std::move(rw->element);
             delete rw;
             return result;
@@ -2413,6 +2417,7 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
 ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
+    if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitLeft(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2421,6 +2426,7 @@ ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_ha
 ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
+    if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitRight(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2429,6 +2435,7 @@ ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_h
 ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
+    if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitTop(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2437,6 +2444,7 @@ ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_han
 ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
+    if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitBottom(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
@@ -2558,6 +2566,7 @@ ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render
 
 ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
+    if (!inner || !callback) return nullptr;
     ftxui::Component inner_comp = inner->component;
     auto* wrapper = new FTXUIComponentWrapper();
     auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
@@ -2579,6 +2588,7 @@ ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_han
 ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option) {
     auto* main_w = static_cast<FTXUIComponentWrapper*>(option.main);
     auto* back_w = static_cast<FTXUIComponentWrapper*>(option.back);
+    if (!main_w || !back_w) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::ResizableSplitOption opt;
     opt.main = main_w->component;
@@ -2593,6 +2603,7 @@ ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_spl
         auto cleanup = std::make_shared<CallbackCleanup>(option.separator_destructor, userdata);
         opt.separator_func = [func, userdata, cleanup]() -> ftxui::Element {
             auto* w = static_cast<FTXUIElementWrapper*>(func(userdata));
+            if (!w) return ftxui::separator();
             auto elem = std::move(w->element);
             delete w;
             return elem;
