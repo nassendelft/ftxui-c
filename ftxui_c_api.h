@@ -1270,6 +1270,7 @@ FTXUI_C_API ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_comp
 // --- CatchEvent ---
 typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* userdata);
 FTXUI_C_API ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_post_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 FTXUI_C_API void ftxui_component_destroy(ftxui_component_handle_t component);
 

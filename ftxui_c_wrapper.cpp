@@ -3478,6 +3478,36 @@ ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t co
 } catch (...) { ftxui_c_fatal_exception("ftxui_component_catch_event"); }
 }
 
+class PostCatchEventBase : public ftxui::ComponentBase {
+ public:
+  PostCatchEventBase(ftxui::Component child, std::function<bool(ftxui::Event)> event_handler)
+      : event_handler_(std::move(event_handler)) {
+    Add(std::move(child));
+  }
+  bool OnEvent(ftxui::Event event) override {
+    if (ftxui::ComponentBase::OnEvent(event)) {
+      return true;
+    }
+    return event_handler_(event);
+  }
+ private:
+  std::function<bool(ftxui::Event)> event_handler_;
+};
+
+ftxui_component_handle_t ftxui_component_post_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+    auto* inner = static_cast<FTXUIComponentWrapper*>(component);
+    if (!inner || !callback) return nullptr;
+    auto* wrapper = new FTXUIComponentWrapper();
+    auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
+    wrapper->component = std::make_shared<PostCatchEventBase>(inner->component, [callback, userdata, cleanup](ftxui::Event event) -> bool {
+        auto* ew = new FTXUIEventWrapper(std::move(event));
+        bool result = callback(static_cast<ftxui_event_handle_t>(ew), userdata);
+        delete ew;
+        return result;
+    });
+    return static_cast<ftxui_component_handle_t>(wrapper);
+}
+
 // --- Component Focus & Active State API ---
 bool ftxui_component_focused(ftxui_component_handle_t component) { try {
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
