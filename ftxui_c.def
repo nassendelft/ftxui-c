@@ -1,0 +1,32 @@
+# Kotlin/Native cinterop definition for ftxui-c.
+#
+# Usage in build.gradle.kts, with a release archive unpacked at
+# third_party/ftxui-c (containing include/ and lib/):
+#
+#   kotlin {
+#       linuxX64 {  // or macosArm64, macosX64, linuxArm64
+#           compilations.getByName("main").cinterops.create("ftxui") {
+#               defFile(project.file("ftxui_c.def"))
+#               includeDirs("third_party/ftxui-c/include")
+#           }
+#           binaries.executable {
+#               linkerOpts("-Lthird_party/ftxui-c/lib")
+#           }
+#       }
+#   }
+#
+# Static linking is the recommended path: the resulting binary has no
+# runtime dependency on libftxui_c_binding. FTXUI is C++, so the C++
+# runtime must be linked as well (see linkerOpts below).
+
+headers = ftxui_c_api.h
+headerFilter = ftxui_c_api.h
+package = ftxui.c
+
+staticLibraries = libftxui_c_binding.a libftxui-component.a libftxui-dom.a libftxui-screen.a
+# Point libraryPaths at the directory containing the archives above,
+# relative to the project root, e.g.:
+# libraryPaths = third_party/ftxui-c/lib
+
+linkerOpts.linux = -lstdc++
+linkerOpts.osx = -lc++

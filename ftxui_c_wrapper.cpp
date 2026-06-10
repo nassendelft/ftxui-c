@@ -20,6 +20,22 @@
 #include <memory>
 #include <string.h>
 #include <vector>
+#include <cstdio>
+#include <exception>
+
+// No C++ exception may cross the extern "C" boundary (undefined behavior for
+// FFI callers such as Kotlin/Native). Every API function catches everything
+// and aborts with a diagnostic; ftxui_app_create_* return NULL instead.
+[[noreturn]] static void ftxui_c_fatal_exception(const char* function) noexcept {
+    try {
+        throw;
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "ftxui-c: fatal: uncaught C++ exception in %s: %s\n", function, e.what());
+    } catch (...) {
+        std::fprintf(stderr, "ftxui-c: fatal: uncaught C++ exception in %s\n", function);
+    }
+    std::abort();
+}
 
 // Wrapper for Component to handle lifetime and children for containers
 struct FTXUIComponentWrapper {
@@ -159,45 +175,52 @@ ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen() {
     }
 }
 
-void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
+void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) { try {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     if (ftxui_app && callback) {
         auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
         ftxui_app->SelectionChange([callback, userdata, cleanup] { callback(userdata); });
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_selection_change"); }
 }
 
-char* ftxui_app_get_selection(ftxui_app_handle_t app) {
+char* ftxui_app_get_selection(ftxui_app_handle_t app) { try {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     if (!ftxui_app) return strdup("");
     return strdup(ftxui_app->GetSelection().c_str());
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_get_selection"); }
 }
 
 // =============================================================================
 // §2  Terminal  (ftxui/screen/terminal.hpp)
 // =============================================================================
 
-int ftxui_terminal_width() {
+int ftxui_terminal_width() { try {
     return ftxui::Terminal::Size().dimx;
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_width"); }
 }
 
-int ftxui_terminal_height() {
+int ftxui_terminal_height() { try {
     return ftxui::Terminal::Size().dimy;
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_height"); }
 }
 
-void ftxui_terminal_set_fallback_size(int w, int h) {
+void ftxui_terminal_set_fallback_size(int w, int h) { try {
     ftxui::Terminal::SetFallbackSize({w, h});
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_set_fallback_size"); }
 }
 
-ftxui_terminal_color_t ftxui_terminal_color_support() {
+ftxui_terminal_color_t ftxui_terminal_color_support() { try {
     return (ftxui_terminal_color_t)ftxui::Terminal::ColorSupport();
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_color_support"); }
 }
 
-void ftxui_terminal_set_color_support(ftxui_terminal_color_t color) {
+void ftxui_terminal_set_color_support(ftxui_terminal_color_t color) { try {
     ftxui::Terminal::SetColorSupport((ftxui::Terminal::Color)color);
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_set_color_support"); }
 }
 
-ftxui_quirks_t ftxui_terminal_get_quirks() {
+ftxui_quirks_t ftxui_terminal_get_quirks() { try {
     auto q = ftxui::Terminal::GetQuirks();
     ftxui_quirks_t result;
     result.block_characters = q.BlockCharacters();
@@ -205,58 +228,67 @@ ftxui_quirks_t ftxui_terminal_get_quirks() {
     result.component_ascii = q.ComponentAscii();
     result.color_support = (ftxui_terminal_color_t)q.ColorSupport();
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_get_quirks"); }
 }
 
-void ftxui_terminal_set_quirks(ftxui_quirks_t quirks) {
+void ftxui_terminal_set_quirks(ftxui_quirks_t quirks) { try {
     ftxui::Terminal::Quirks q;
     q.SetBlockCharacters(quirks.block_characters);
     q.SetCursorHiding(quirks.cursor_hiding);
     q.SetComponentAscii(quirks.component_ascii);
     q.SetColorSupport((ftxui::Terminal::Color)quirks.color_support);
     ftxui::Terminal::SetQuirks(q);
+} catch (...) { ftxui_c_fatal_exception("ftxui_terminal_set_quirks"); }
 }
 
-void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component) {
+void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component) { try {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (ftxui_app && wrapper) {
         ftxui_app->Loop(wrapper->component);
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_loop"); }
 }
 
-void ftxui_app_exit(ftxui_app_handle_t app) {
+void ftxui_app_exit(ftxui_app_handle_t app) { try {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     if (ftxui_app) {
         ftxui_app->Exit();
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_exit"); }
 }
 
-void ftxui_app_destroy(ftxui_app_handle_t app) {
+void ftxui_app_destroy(ftxui_app_handle_t app) { try {
     auto* wrapper = static_cast<ftxui_app_wrapper*>(app);
     delete wrapper;
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_destroy"); }
 }
 
-void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable) {
+void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (a) a->TrackMouse(enable);
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_track_mouse"); }
 }
 
-void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable) {
+void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (a) a->HandlePipedInput(enable);
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_handle_piped_input"); }
 }
 
-void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force) {
+void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (a) a->ForceHandleCtrlC(force);
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_force_handle_ctrl_c"); }
 }
 
-void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force) {
+void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (a) a->ForceHandleCtrlZ(force);
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_force_handle_ctrl_z"); }
 }
 
-void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
+void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (a) {
         auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
@@ -264,15 +296,17 @@ void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userd
             if (callback) callback(userdata);
         });
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_post"); }
 }
 
-void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event) {
+void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event) { try {
     auto* a = static_cast<ftxui::App*>(app);
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (a && w) a->PostEvent(w->event);
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_post_event"); }
 }
 
-void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) {
+void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (a && callback) {
         a->WithRestoredIO([callback, userdata] { callback(userdata); })();
@@ -280,33 +314,39 @@ void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*),
     if (destructor) {
         destructor(userdata);
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_with_restored_io"); }
 }
 
-ftxui_app_handle_t ftxui_app_active() {
+ftxui_app_handle_t ftxui_app_active() { try {
     return static_cast<ftxui_app_handle_t>(static_cast<ftxui_app_wrapper*>(ftxui::App::Active()));
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_active"); }
 }
 
-const char* ftxui_app_terminal_name(ftxui_app_handle_t app) {
+const char* ftxui_app_terminal_name(ftxui_app_handle_t app) { try {
     auto* a = static_cast<ftxui::App*>(app);
     return a ? a->TerminalName().c_str() : "";
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_terminal_name"); }
 }
 
-int ftxui_app_terminal_version(ftxui_app_handle_t app) {
+int ftxui_app_terminal_version(ftxui_app_handle_t app) { try {
     auto* a = static_cast<ftxui::App*>(app);
     return a ? a->TerminalVersion() : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_terminal_version"); }
 }
 
-const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app) {
+const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app) { try {
     auto* a = static_cast<ftxui::App*>(app);
     return a ? a->TerminalEmulatorName().c_str() : "";
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_terminal_emulator_name"); }
 }
 
-const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app) {
+const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app) { try {
     auto* a = static_cast<ftxui::App*>(app);
     return a ? a->TerminalEmulatorVersion().c_str() : "";
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_terminal_emulator_version"); }
 }
 
-int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count) {
+int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (!a || !count) return nullptr;
     const auto& caps = a->TerminalCapabilities();
@@ -315,25 +355,29 @@ int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count) {
     int* result = (int*)std::malloc(caps.size() * sizeof(int));
     for (size_t i = 0; i < caps.size(); i++) result[i] = caps[i];
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_terminal_capabilities"); }
 }
 
-ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app) {
+ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app) { try {
     auto* a = static_cast<ftxui::App*>(app);
     if (!a) return nullptr;
     auto cap = a->CaptureMouse();
     if (!cap) return nullptr;
     return static_cast<ftxui_captured_mouse_handle_t>(new FTXUICapturedMouseWrapper{std::move(cap)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_capture_mouse"); }
 }
 
-void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle) {
+void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle) { try {
     delete static_cast<FTXUICapturedMouseWrapper*>(handle);
+} catch (...) { ftxui_c_fatal_exception("ftxui_captured_mouse_destroy"); }
 }
 
-void ftxui_component_destroy(ftxui_component_handle_t component) {
+void ftxui_component_destroy(ftxui_component_handle_t component) { try {
     if (component) {
         auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
         delete wrapper;
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_destroy"); }
 }
 
 // =============================================================================
@@ -346,33 +390,38 @@ struct FTXUILoopWrapper {
         : loop(app, component) {}
 };
 
-ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component) {
+ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component) { try {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!ftxui_app || !wrapper) return nullptr;
     return static_cast<ftxui_loop_handle_t>(new FTXUILoopWrapper(ftxui_app, wrapper->component));
+} catch (...) { ftxui_c_fatal_exception("ftxui_loop_create"); }
 }
 
-bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop) {
+bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop) { try {
     auto* lw = static_cast<FTXUILoopWrapper*>(loop);
     return lw ? lw->loop.HasQuitted() : true;
+} catch (...) { ftxui_c_fatal_exception("ftxui_loop_has_quitted"); }
 }
 
-void ftxui_loop_run_once(ftxui_loop_handle_t loop) {
+void ftxui_loop_run_once(ftxui_loop_handle_t loop) { try {
     auto* lw = static_cast<FTXUILoopWrapper*>(loop);
     if (lw) lw->loop.RunOnce();
+} catch (...) { ftxui_c_fatal_exception("ftxui_loop_run_once"); }
 }
 
-void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop) {
+void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop) { try {
     auto* lw = static_cast<FTXUILoopWrapper*>(loop);
     if (lw) lw->loop.RunOnceBlocking();
+} catch (...) { ftxui_c_fatal_exception("ftxui_loop_run_once_blocking"); }
 }
 
-void ftxui_loop_destroy(ftxui_loop_handle_t loop) {
+void ftxui_loop_destroy(ftxui_loop_handle_t loop) { try {
     delete static_cast<FTXUILoopWrapper*>(loop);
+} catch (...) { ftxui_c_fatal_exception("ftxui_loop_destroy"); }
 }
 
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (*on_poll)(void*), void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
     wrapper->component = ftxui::Renderer([on_poll, userdata, cleanup] {
@@ -380,9 +429,10 @@ ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t /*app*/, void (
         return ftxui::text("");
     });
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_poll"); }
 }
 
-ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) { try {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     ftxui::Component inner_comp = inner_wrapper ? inner_wrapper->component : nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -401,13 +451,15 @@ ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t compo
         wrapper->component = ftxui::Renderer(render_lambda);
     }
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_renderer"); }
 }
 
-void ftxui_app_request_animation_frame(ftxui_app_handle_t app) {
+void ftxui_app_request_animation_frame(ftxui_app_handle_t app) { try {
     auto* ftxui_app = static_cast<ftxui::App*>(app);
     if (ftxui_app) {
         ftxui_app->RequestAnimationFrame();
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_app_request_animation_frame"); }
 }
 
 // --- selection style decorator ---
@@ -417,95 +469,112 @@ ftxui_element_handle_t ftxui_element_selection_style(
     ftxui_cell_style_callback_t callback,
     void* userdata,
     ftxui_destructor_t destructor
-) {
+) { try {
     if (!callback) return element;
     return apply_element_modifier(element, [callback, userdata, destructor](ftxui::Element el) {
         return el | ftxui::selectionStyle(make_canvas_stylizer(callback, userdata, destructor));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_selection_style"); }
 }
 
 // =============================================================================
 // §4  Color  (ftxui/screen/color.hpp)
 // =============================================================================
 
-ftxui_color_handle_t ftxui_color_default() {
+ftxui_color_handle_t ftxui_color_default() { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color());
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_default"); }
 }
 
-ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b) {
+ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(r, g, b));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_rgb"); }
 }
 
-ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(r, g, b, a));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_rgba"); }
 }
 
-ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v) {
+ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::HSV(h, s, v)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_hsv"); }
 }
 
-ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a) {
+ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::HSVA(h, s, v, a)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_hsva"); }
 }
 
-ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index) {
+ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette1>(index)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_palette1"); }
 }
 
-ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index) {
+ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette16>(index)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_palette16"); }
 }
 
-ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index) {
+ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette256>(index)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_palette256"); }
 }
-ftxui_color_handle_t ftxui_color_palette256_raw(int index) {
+ftxui_color_handle_t ftxui_color_palette256_raw(int index) { try {
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(static_cast<ftxui::Color::Palette256>(index)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_palette256_raw"); }
 }
 
-ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b) {
+ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b) { try {
     auto* color_a = static_cast<ftxui::Color*>(a);
     auto* color_b = static_cast<ftxui::Color*>(b);
     if (!color_a || !color_b) return nullptr;
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::Interpolate(t, *color_a, *color_b)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_interpolate"); }
 }
 
-ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
+ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) { try {
     auto* color_lhs = static_cast<ftxui::Color*>(lhs);
     auto* color_rhs = static_cast<ftxui::Color*>(rhs);
     if (!color_lhs || !color_rhs) return nullptr;
     return static_cast<ftxui_color_handle_t>(new ftxui::Color(ftxui::Color::Blend(*color_lhs, *color_rhs)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_blend"); }
 }
 
-bool ftxui_color_is_opaque(ftxui_color_handle_t color) {
+bool ftxui_color_is_opaque(ftxui_color_handle_t color) { try {
     auto* ftxui_color = static_cast<ftxui::Color*>(color);
     if (!ftxui_color) return false;
     return ftxui_color->IsOpaque();
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_is_opaque"); }
 }
 
-bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
+bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) { try {
     auto* color_lhs = static_cast<ftxui::Color*>(lhs);
     auto* color_rhs = static_cast<ftxui::Color*>(rhs);
     if (!color_lhs || !color_rhs) return false; // Or handle as error
     return *color_lhs == *color_rhs;
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_equals"); }
 }
 
-bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) {
+bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs) { try {
     auto* color_lhs = static_cast<ftxui::Color*>(lhs);
     auto* color_rhs = static_cast<ftxui::Color*>(rhs);
     if (!color_lhs || !color_rhs) return false; // Or handle as error
     return *color_lhs != *color_rhs;
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_not_equals"); }
 }
 
-char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color) {
+char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color) { try {
     auto* ftxui_color = static_cast<ftxui::Color*>(color);
     if (!ftxui_color) return strdup(""); // Return empty string for null color
     std::string s = ftxui_color->Print(is_background_color);
     return strdup(s.c_str());
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_print"); }
 }
 
-void ftxui_color_destroy(ftxui_color_handle_t color) {
+void ftxui_color_destroy(ftxui_color_handle_t color) { try {
     delete static_cast<ftxui::Color*>(color);
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_destroy"); }
 }
 
 // =============================================================================
@@ -529,7 +598,7 @@ static ftxui_color_info_t to_c_color_info(const ftxui::ColorInfo& info) {
 
 static const ftxui_color_info_t k_padding_entry = {-1, 0, "", 0, 0, 0, 0, 0, 0};
 
-ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
+ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) { try {
     auto info_columns = ftxui::ColorInfoSorted2D();
     int rows = static_cast<int>(info_columns.size());
     int cols = 0;
@@ -552,90 +621,107 @@ ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols) {
         }
     }
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_info_sorted_2d"); }
 }
 
-void ftxui_color_info_free(ftxui_color_info_t* data) {
+void ftxui_color_info_free(ftxui_color_info_t* data) { try {
     delete[] data;
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_info_free"); }
 }
 
-ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) {
+ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index) { try {
     return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette256)index));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_info_get_256"); }
 }
 
-ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) {
+ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index) { try {
     return to_c_color_info(ftxui::GetColorInfo((ftxui::Color::Palette16)index));
+} catch (...) { ftxui_c_fatal_exception("ftxui_color_info_get_16"); }
 }
 
 // =============================================================================
 // §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
 // =============================================================================
 
-ftxui_linear_gradient_handle_t ftxui_linear_gradient_create() {
+ftxui_linear_gradient_handle_t ftxui_linear_gradient_create() { try {
     return static_cast<ftxui_linear_gradient_handle_t>(new ftxui::LinearGradient());
+} catch (...) { ftxui_c_fatal_exception("ftxui_linear_gradient_create"); }
 }
 
-void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient) {
+void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient) { try {
     delete static_cast<ftxui::LinearGradient*>(gradient);
+} catch (...) { ftxui_c_fatal_exception("ftxui_linear_gradient_destroy"); }
 }
 
-void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle) {
+void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle) { try {
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     if (g) g->Angle(angle);
+} catch (...) { ftxui_c_fatal_exception("ftxui_linear_gradient_angle"); }
 }
 
-void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color) {
+void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color) { try {
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     auto* col = static_cast<ftxui::Color*>(color);
     if (g && col) g->Stop(*col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_linear_gradient_stop"); }
 }
 
-void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position) {
+void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position) { try {
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     auto* col = static_cast<ftxui::Color*>(color);
     if (g && col) g->Stop(*col, position);
+} catch (...) { ftxui_c_fatal_exception("ftxui_linear_gradient_stop_at"); }
 }
 
 // =============================================================================
 // §7  Elements — Basic  (ftxui/dom/elements.hpp)
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_text(const char* text) {
+ftxui_element_handle_t ftxui_element_text(const char* text) { try {
     return create_element_wrapper(ftxui::text(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_text"); }
 }
 
-ftxui_element_handle_t ftxui_element_gauge(double value) {
+ftxui_element_handle_t ftxui_element_gauge(double value) { try {
     return create_element_wrapper(ftxui::gauge(value));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gauge"); }
 }
 
 // =============================================================================
 // §8  Elements — Separators
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_separator() {
+ftxui_element_handle_t ftxui_element_separator() { try {
     return create_element_wrapper(ftxui::separator());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_light() {
+ftxui_element_handle_t ftxui_element_separator_light() { try {
     return create_element_wrapper(ftxui::separatorLight());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_light"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_dashed() {
+ftxui_element_handle_t ftxui_element_separator_dashed() { try {
     return create_element_wrapper(ftxui::separatorDashed());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_dashed"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_heavy() {
+ftxui_element_handle_t ftxui_element_separator_heavy() { try {
     return create_element_wrapper(ftxui::separatorHeavy());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_heavy"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_double() {
+ftxui_element_handle_t ftxui_element_separator_double() { try {
     return create_element_wrapper(ftxui::separatorDouble());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_double"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_empty() {
+ftxui_element_handle_t ftxui_element_separator_empty() { try {
     return create_element_wrapper(ftxui::separatorEmpty());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_empty"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style) {
+ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style) { try {
     ftxui::BorderStyle ftxui_style;
     switch (style) {
         case FTXUI_BORDER_STYLE_LIGHT: ftxui_style = ftxui::LIGHT; break;
@@ -647,33 +733,37 @@ ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style
         default: ftxui_style = ftxui::LIGHT; break;
     }
     return create_element_wrapper(ftxui::separatorStyled(ftxui_style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_styled"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_character(const char* character) {
+ftxui_element_handle_t ftxui_element_separator_character(const char* character) { try {
     return create_element_wrapper(ftxui::separatorCharacter(character));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_character"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_hselector(float left, float right, ftxui_color_handle_t unselected_color_handle, ftxui_color_handle_t selected_color_handle) {
+ftxui_element_handle_t ftxui_element_separator_hselector(float left, float right, ftxui_color_handle_t unselected_color_handle, ftxui_color_handle_t selected_color_handle) { try {
     auto* unselected_color_ptr = static_cast<ftxui::Color*>(unselected_color_handle);
     auto* selected_color_ptr = static_cast<ftxui::Color*>(selected_color_handle);
     if (!unselected_color_ptr || !selected_color_ptr) return nullptr;
 
     return create_element_wrapper(ftxui::separatorHSelector(left, right, *unselected_color_ptr, *selected_color_ptr));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_hselector"); }
 }
 
-ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, ftxui_color_handle_t unselected_color_handle, ftxui_color_handle_t selected_color_handle) {
+ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, ftxui_color_handle_t unselected_color_handle, ftxui_color_handle_t selected_color_handle) { try {
     auto* unselected_color_ptr = static_cast<ftxui::Color*>(unselected_color_handle);
     auto* selected_color_ptr = static_cast<ftxui::Color*>(selected_color_handle);
     if (!unselected_color_ptr || !selected_color_ptr) return nullptr;
 
     return create_element_wrapper(ftxui::separatorVSelector(up, down, *unselected_color_ptr, *selected_color_ptr));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_separator_vselector"); }
 }
 
 // =============================================================================
 // §9  Elements — Layout
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count) {
+ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count) { try {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
         auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
@@ -683,9 +773,10 @@ ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int 
         }
     }
     return create_element_wrapper(ftxui::vbox(std::move(children)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_vbox"); }
 }
 
-ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int count) {
+ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int count) { try {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
         auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
@@ -695,9 +786,10 @@ ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int 
         }
     }
     return create_element_wrapper(ftxui::hbox(std::move(children)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_hbox"); }
 }
 
-ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_element_handle_t component) {
+ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_element_handle_t component) { try {
     auto* element_wrapper = static_cast<FTXUIElementWrapper*>(component);
     if (!element_wrapper) return nullptr;
     auto* title_wrapper = static_cast<FTXUIElementWrapper*>(title);
@@ -707,270 +799,311 @@ ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_
     delete title_wrapper;
     delete element_wrapper;
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_window"); }
 }
 
 // =============================================================================
 // §10  Elements — Styling Decorators
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color_handle) {
+ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color_handle) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color_handle);
     if (!color_ptr) return nullptr;
 
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::color(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_color"); }
 }
 
-ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftxui_color_handle_t color_handle) {
+ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftxui_color_handle_t color_handle) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color_handle);
     if (!color_ptr) return nullptr;
 
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::bgcolor(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_bgcolor"); }
 }
 
-ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
+ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) { try {
     auto* ew = static_cast<FTXUIElementWrapper*>(element);
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     if (!ew || !g) return nullptr;
     auto result = create_element_wrapper(std::move(ew->element) | ftxui::bgcolor(*g));
     delete ew;
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_bgcolor_linear_gradient"); }
 }
 
-ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) {
+ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient) { try {
     auto* ew = static_cast<FTXUIElementWrapper*>(element);
     auto* g = static_cast<ftxui::LinearGradient*>(gradient);
     if (!ew || !g) return nullptr;
     auto result = create_element_wrapper(std::move(ew->element) | ftxui::color(*g));
     delete ew;
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_color_linear_gradient"); }
 }
 
 // -- START decorators
 
-ftxui_element_handle_t ftxui_element_border(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::border(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_light(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border_light(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::borderLight(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_light"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_dashed(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border_dashed(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::borderDashed(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_dashed"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_heavy(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border_heavy(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::borderHeavy(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_heavy"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_double(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border_double(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::borderDouble(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_double"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_rounded(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border_rounded(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::borderRounded(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_rounded"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::borderEmpty(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_empty"); }
 }
 
- ftxui_element_handle_t ftxui_element_flex(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_flex(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::flex;
     });
- }
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_flex"); }
+}
 
- ftxui_element_handle_t ftxui_element_bold(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_bold(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::bold;
     });
- }
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_bold"); }
+}
 
- ftxui_element_handle_t ftxui_element_inverted(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_inverted(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::inverted;
     });
- }
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_inverted"); }
+}
 
- ftxui_element_handle_t ftxui_element_underlined(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_underlined(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::underlined;
     });
- }
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_underlined"); }
+}
 
 // =============================================================================
 // §11  Elements — Flex / Size
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::flex_grow(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_flex_grow"); }
 }
 
-ftxui_element_handle_t ftxui_element_flex_shrink(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_flex_shrink(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::flex_shrink(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_flex_shrink"); }
 }
 
-ftxui_element_handle_t ftxui_element_xflex(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_xflex(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::xflex(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_xflex"); }
 }
 
-ftxui_element_handle_t ftxui_element_xflex_grow(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_xflex_grow(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::xflex_grow(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_xflex_grow"); }
 }
 
-ftxui_element_handle_t ftxui_element_xflex_shrink(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_xflex_shrink(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::xflex_shrink(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_xflex_shrink"); }
 }
 
-ftxui_element_handle_t ftxui_element_yflex(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_yflex(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::yflex(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_yflex"); }
 }
 
-ftxui_element_handle_t ftxui_element_yflex_grow(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_yflex_grow(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::yflex_grow(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_yflex_grow"); }
 }
 
-ftxui_element_handle_t ftxui_element_yflex_shrink(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_yflex_shrink(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::yflex_shrink(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_yflex_shrink"); }
 }
 
-ftxui_element_handle_t ftxui_element_notflex(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_notflex(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::notflex(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_notflex"); }
 }
 
-ftxui_element_handle_t ftxui_element_filler() {
+ftxui_element_handle_t ftxui_element_filler() { try {
     return create_element_wrapper(ftxui::filler());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_filler"); }
 }
 
-ftxui_element_handle_t ftxui_element_xframe(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_xframe(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::xframe(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_xframe"); }
 }
 
-ftxui_element_handle_t ftxui_element_yframe(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_yframe(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::yframe(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_yframe"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focus(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_cursor_block(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus_cursor_block(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focusCursorBlock(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_cursor_block"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_cursor_block_blinking(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus_cursor_block_blinking(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focusCursorBlockBlinking(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_cursor_block_blinking"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_cursor_bar(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus_cursor_bar(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focusCursorBar(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_cursor_bar"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_cursor_bar_blinking(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus_cursor_bar_blinking(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focusCursorBarBlinking(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_cursor_bar_blinking"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focusCursorUnderline(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_cursor_underline"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::focusCursorUnderlineBlinking(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_cursor_underline_blinking"); }
 }
 
-ftxui_element_handle_t ftxui_element_italic(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_italic(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::italic(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_italic"); }
 }
 
-ftxui_element_handle_t ftxui_element_underlined_double(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_underlined_double(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::underlinedDouble(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_underlined_double"); }
 }
 
-ftxui_element_handle_t ftxui_element_automerge(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_automerge(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::automerge(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_automerge"); }
 }
 
-ftxui_element_handle_t ftxui_element_hyperlink(const char* link, ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_hyperlink(const char* link, ftxui_element_handle_t element) { try {
     std::string link_str(link);
     return apply_element_modifier(element, [link_str](ftxui::Element el) {
         return ftxui::hyperlink(link_str, std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_hyperlink"); }
 }
 
-ftxui_element_handle_t ftxui_element_hscroll_indicator(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_hscroll_indicator(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::hscroll_indicator;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_hscroll_indicator"); }
 }
 
-ftxui_element_handle_t ftxui_element_clear_under(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_clear_under(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::clear_under(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_clear_under"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t element, ftxui_border_style_t style) {
+ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t element, ftxui_border_style_t style) { try {
     ftxui::BorderStyle ftxui_style;
     switch (style) {
         case FTXUI_BORDER_STYLE_LIGHT: ftxui_style = ftxui::LIGHT; break;
@@ -984,9 +1117,10 @@ ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t elemen
     return apply_element_modifier(element, [ftxui_style](ftxui::Element el) {
         return std::move(el) | ftxui::borderStyled(ftxui_style);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_styled"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t element, ftxui_border_style_t style, ftxui_color_handle_t color) {
+ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t element, ftxui_border_style_t style, ftxui_color_handle_t color) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color);
     if (!color_ptr) return nullptr;
     ftxui::BorderStyle ftxui_style;
@@ -1002,56 +1136,64 @@ ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t 
     return apply_element_modifier(element, [ftxui_style, color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::borderStyled(ftxui_style, *color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_styled_color"); }
 }
 
-ftxui_element_handle_t ftxui_element_border_colored(ftxui_element_handle_t element, ftxui_color_handle_t color) {
+ftxui_element_handle_t ftxui_element_border_colored(ftxui_element_handle_t element, ftxui_color_handle_t color) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color);
     if (!color_ptr) return nullptr;
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::borderStyled(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_border_colored"); }
 }
 
-ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::selectionStyleReset(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_selection_style_reset"); }
 }
 
-ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color) {
+ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color);
     if (!color_ptr) return nullptr;
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::selectionColor(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_selection_color"); }
 }
 
-ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color) {
+ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color);
     if (!color_ptr) return nullptr;
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::selectionBackgroundColor(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_selection_background_color"); }
 }
 
-ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color) {
+ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color);
     if (!color_ptr) return nullptr;
     return apply_element_modifier(element, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::selectionForegroundColor(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_selection_foreground_color"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y) {
+ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y) { try {
     return apply_element_modifier(element, [x, y](ftxui::Element el) {
         return std::move(el) | ftxui::focusPosition(x, y);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_position"); }
 }
 
-ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y) {
+ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y) { try {
     return apply_element_modifier(element, [x, y](ftxui::Element el) {
         return std::move(el) | ftxui::focusPositionRelative(x, y);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_focus_position_relative"); }
 }
 
 // -- END additional elements
@@ -1129,19 +1271,21 @@ static ftxui::ButtonOption to_ftxui_button_option(ftxui_button_option_t option) 
 // §12  Elements — Frame / Scroll / Focus
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::vscroll_indicator;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_vscroll_indicator"); }
 }
 
-ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::frame;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_frame"); }
 }
 
-ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) {
+ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) { try {
     auto ftxui_constraint_modifier = [&](ftxui::Element el) {
         ftxui::WidthOrHeight width_or_height;
         ftxui::Constraint constraint;
@@ -1157,114 +1301,135 @@ ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ft
         return el | ftxui::size(width_or_height, constraint, value);
     };
     return apply_element_modifier(element, ftxui_constraint_modifier);
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_set_size"); }
 }
 
 // =============================================================================
 // §13  Elements — Alignment & Utility
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::hcenter(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_hcenter"); }
 }
 
-ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::vcenter(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_vcenter"); }
 }
 
-ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::center(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_center"); }
 }
 
-ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::align_right(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_align_right"); }
 }
 
 
-ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::dim;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_dim"); }
 }
 
-ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::blink;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_blink"); }
 }
 
-ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return std::move(el) | ftxui::strikethrough;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_strikethrough"); }
 }
 
-ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element) {
+ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element) { try {
     return apply_element_modifier(element, [](ftxui::Element el) {
         return ftxui::nothing(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_nothing"); }
 }
 
 // -- END util elements
 
 // -- START additional elements
 
-ftxui_element_handle_t ftxui_element_vtext(const char* text) {
+ftxui_element_handle_t ftxui_element_vtext(const char* text) { try {
     return create_element_wrapper(ftxui::vtext(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_vtext"); }
 }
 
-ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index) {
+ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index) { try {
     return create_element_wrapper(ftxui::spinner(charset_index, image_index));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_spinner"); }
 }
 
-ftxui_element_handle_t ftxui_element_paragraph(const char* text) {
+ftxui_element_handle_t ftxui_element_paragraph(const char* text) { try {
     return create_element_wrapper(ftxui::paragraph(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_paragraph"); }
 }
 
-ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text) {
+ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text) { try {
     return create_element_wrapper(ftxui::paragraphAlignLeft(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_paragraph_align_left"); }
 }
 
-ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text) {
+ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text) { try {
     return create_element_wrapper(ftxui::paragraphAlignRight(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_paragraph_align_right"); }
 }
 
-ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text) {
+ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text) { try {
     return create_element_wrapper(ftxui::paragraphAlignCenter(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_paragraph_align_center"); }
 }
 
-ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text) {
+ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text) { try {
     return create_element_wrapper(ftxui::paragraphAlignJustify(text));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_paragraph_align_justify"); }
 }
 
-ftxui_element_handle_t ftxui_element_empty() {
+ftxui_element_handle_t ftxui_element_empty() { try {
     return create_element_wrapper(ftxui::emptyElement());
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_empty"); }
 }
 
-ftxui_element_handle_t ftxui_element_gauge_left(double value) {
+ftxui_element_handle_t ftxui_element_gauge_left(double value) { try {
     return create_element_wrapper(ftxui::gaugeLeft(static_cast<float>(value)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gauge_left"); }
 }
 
-ftxui_element_handle_t ftxui_element_gauge_right(double value) {
+ftxui_element_handle_t ftxui_element_gauge_right(double value) { try {
     return create_element_wrapper(ftxui::gaugeRight(static_cast<float>(value)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gauge_right"); }
 }
 
-ftxui_element_handle_t ftxui_element_gauge_up(double value) {
+ftxui_element_handle_t ftxui_element_gauge_up(double value) { try {
     return create_element_wrapper(ftxui::gaugeUp(static_cast<float>(value)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gauge_up"); }
 }
 
-ftxui_element_handle_t ftxui_element_gauge_down(double value) {
+ftxui_element_handle_t ftxui_element_gauge_down(double value) { try {
     return create_element_wrapper(ftxui::gaugeDown(static_cast<float>(value)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gauge_down"); }
 }
 
-ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction) {
+ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction) { try {
     ftxui::Direction dir;
     switch (direction) {
         case FTXUI_DIRECTION_UP: dir = ftxui::Direction::Up; break;
@@ -1274,9 +1439,10 @@ ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_directi
         default: dir = ftxui::Direction::Right; break;
     }
     return create_element_wrapper(ftxui::gaugeDirection(static_cast<float>(value), dir));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gauge_direction"); }
 }
 
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata, ftxui_destructor_t destructor) { try {
     if (!callback) return nullptr;
     auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
     auto graph_fn = [callback, userdata, cleanup](int width, int height) -> std::vector<int> {
@@ -1285,9 +1451,10 @@ ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void
         return output;
     };
     return create_element_wrapper(ftxui::graph(graph_fn));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_graph"); }
 }
 
-ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count) {
+ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count) { try {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
         auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
@@ -1297,9 +1464,10 @@ ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int 
         }
     }
     return create_element_wrapper(ftxui::dbox(std::move(children)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_dbox"); }
 }
 
-ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count) {
+ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count) { try {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
         auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
@@ -1309,9 +1477,10 @@ ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int
         }
     }
     return create_element_wrapper(ftxui::hflow(std::move(children)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_hflow"); }
 }
 
-ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count) {
+ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count) { try {
     ftxui::Elements children;
     for (int i = 0; i < count; ++i) {
         auto* wrapper = static_cast<FTXUIElementWrapper*>(elements[i]);
@@ -1321,9 +1490,10 @@ ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int
         }
     }
     return create_element_wrapper(ftxui::vflow(std::move(children)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_vflow"); }
 }
 
-ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count) {
+ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count) { try {
     std::vector<std::vector<ftxui::Element>> rows;
     int idx = 0;
     for (int r = 0; r < row_count; r++) {
@@ -1337,9 +1507,10 @@ ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int 
         rows.push_back(std::move(row));
     }
     return create_element_wrapper(ftxui::gridbox(std::move(rows)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_gridbox"); }
 }
 
-ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config) {
+ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config) { try {
     ftxui::Elements elems;
     for (int i = 0; i < count; i++) {
         auto* w = static_cast<FTXUIElementWrapper*>(elements[i]);
@@ -1359,28 +1530,33 @@ ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, i
     ftx_config.gap_y = config.gap_y;
 
     return create_element_wrapper(ftxui::flexbox(std::move(elems), ftx_config));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_flexbox"); }
 }
 
 // =============================================================================
 // §14  Canvas  (ftxui/dom/canvas.hpp)
 // =============================================================================
 
-ftxui_canvas_handle_t ftxui_canvas_create(int width, int height) {
+ftxui_canvas_handle_t ftxui_canvas_create(int width, int height) { try {
     return static_cast<ftxui_canvas_handle_t>(new ftxui::Canvas(width, height));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_create"); }
 }
 
-void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas) {
+void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas) { try {
     delete static_cast<ftxui::Canvas*>(canvas);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_destroy"); }
 }
 
-int ftxui_canvas_width(ftxui_canvas_handle_t canvas) {
+int ftxui_canvas_width(ftxui_canvas_handle_t canvas) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     return c ? c->width() : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_width"); }
 }
 
-int ftxui_canvas_height(ftxui_canvas_handle_t canvas) {
+int ftxui_canvas_height(ftxui_canvas_handle_t canvas) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     return c ? c->height() : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_height"); }
 }
 
 // Helper: build a Canvas::Stylizer from a C callback.
@@ -1429,249 +1605,294 @@ static ftxui::Canvas::Stylizer make_canvas_stylizer(ftxui_cell_style_callback_t 
     };
 }
 
-void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text) {
+void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && text) c->DrawText(x, y, text);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_text"); }
 }
 
-void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && text && col) c->DrawText(x, y, text, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_text_color"); }
 }
 
-void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && text && cb) c->DrawText(x, y, text, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_text_stylizer"); }
 }
 
-void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y) {
+void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointOn(x, y);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_on"); }
 }
 
-void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y) {
+void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointOff(x, y);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_off"); }
 }
 
-void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
+void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointToggle(x, y);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_toggle"); }
 }
 
-void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
+void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPoint(x, y, value);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point"); }
 }
 
-void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawPoint(x, y, value, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_color"); }
 }
 
-void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawPoint(x, y, value, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_stylizer"); }
 }
 
-void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (!c) return;
     if (col) c->DrawPointLine(x1, y1, x2, y2, *col);
     else c->DrawPointLine(x1, y1, x2, y2);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_line"); }
 }
 
-void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawPointLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_line_stylizer"); }
 }
 
-void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointCircle(x, y, radius);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_circle"); }
 }
 
-void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawPointCircle(x, y, radius, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_circle_color"); }
 }
 
-void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawPointCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_circle_stylizer"); }
 }
 
-void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointCircleFilled(x, y, radius);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_circle_filled"); }
 }
 
-void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawPointCircleFilled(x, y, radius, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_circle_filled_color"); }
 }
 
-void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawPointCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_circle_filled_stylizer"); }
 }
 
-void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointEllipse(x, y, rx, ry);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_ellipse"); }
 }
 
-void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawPointEllipse(x, y, rx, ry, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_ellipse_color"); }
 }
 
-void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawPointEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_ellipse_stylizer"); }
 }
 
-void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawPointEllipseFilled(x, y, rx, ry);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_ellipse_filled"); }
 }
 
-void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawPointEllipseFilled(x, y, rx, ry, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_ellipse_filled_color"); }
 }
 
-void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawPointEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_point_ellipse_filled_stylizer"); }
 }
 
-void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y) {
+void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockOn(x, y);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_on"); }
 }
 
-void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y) {
+void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockOff(x, y);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_off"); }
 }
 
-void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y) {
+void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockToggle(x, y);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_toggle"); }
 }
 
-void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value) {
+void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlock(x, y, value);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block"); }
 }
 
-void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawBlock(x, y, value, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_color"); }
 }
 
-void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawBlock(x, y, value, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_stylizer"); }
 }
 
-void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (!c) return;
     if (col) c->DrawBlockLine(x1, y1, x2, y2, *col);
     else c->DrawBlockLine(x1, y1, x2, y2);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_line"); }
 }
 
-void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawBlockLine(x1, y1, x2, y2, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_line_stylizer"); }
 }
 
-void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockCircle(x, y, radius);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_circle"); }
 }
 
-void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawBlockCircle(x, y, radius, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_circle_color"); }
 }
 
-void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawBlockCircle(x, y, radius, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_circle_stylizer"); }
 }
 
-void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) {
+void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockCircleFilled(x, y, radius);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_circle_filled"); }
 }
 
-void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawBlockCircleFilled(x, y, radius, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_circle_filled_color"); }
 }
 
-void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawBlockCircleFilled(x, y, radius, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_circle_filled_stylizer"); }
 }
 
-void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockEllipse(x, y, rx, ry);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_ellipse"); }
 }
 
-void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawBlockEllipse(x, y, rx, ry, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_ellipse_color"); }
 }
 
-void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawBlockEllipse(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_ellipse_stylizer"); }
 }
 
-void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) {
+void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c) c->DrawBlockEllipseFilled(x, y, rx, ry);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_ellipse_filled"); }
 }
 
-void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) {
+void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     auto* col = static_cast<ftxui::Color*>(color);
     if (c && col) c->DrawBlockEllipseFilled(x, y, rx, ry, *col);
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_ellipse_filled_color"); }
 }
 
-void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->DrawBlockEllipseFilled(x, y, rx, ry, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_draw_block_ellipse_filled_stylizer"); }
 }
 
-void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata) {
+void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (c && cb) c->Style(x, y, make_canvas_stylizer(cb, userdata));
+} catch (...) { ftxui_c_fatal_exception("ftxui_canvas_style"); }
 }
 
-ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) {
+ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas) { try {
     auto* c = static_cast<ftxui::Canvas*>(canvas);
     if (!c) return nullptr;
     // Copy the canvas so the element owns its own data (safe even if caller destroys canvas).
     ftxui::Canvas copy = *c;
     return create_element_wrapper(ftxui::canvas(std::move(copy)));
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_canvas_ref"); }
 }
 
 
@@ -1687,7 +1908,7 @@ struct FTXUITableSelectionWrapper {
     ftxui::TableSelection selection;
 };
 
-ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols) {
+ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols) { try {
     std::vector<std::vector<std::string>> data;
     for (int r = 0; r < rows; r++) {
         std::vector<std::string> row;
@@ -1700,16 +1921,19 @@ ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols) 
     auto* wrapper = new FTXUITableWrapper();
     wrapper->table = ftxui::Table(data);
     return static_cast<ftxui_table_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_create"); }
 }
 
-void ftxui_table_destroy(ftxui_table_handle_t table) {
+void ftxui_table_destroy(ftxui_table_handle_t table) { try {
     delete static_cast<FTXUITableWrapper*>(table);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_destroy"); }
 }
 
-ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table) {
+ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return create_element_wrapper(tw->table.Render());
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_render"); }
 }
 
 static ftxui::BorderStyle to_ftxui_border_style(ftxui_border_style_t style) {
@@ -1727,127 +1951,148 @@ static ftxui::BorderStyle to_ftxui_border_style(ftxui_border_style_t style) {
 // §16  Table Selection
 // =============================================================================
 
-ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table) {
+ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectAll()});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_all"); }
 }
 
-ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row) {
+ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRow(row)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_row"); }
 }
 
-ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to) {
+ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRows(from, to)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_rows"); }
 }
 
-ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col) {
+ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectColumn(col)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_column"); }
 }
 
-ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row) {
+ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectCell(col, row)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_cell"); }
 }
 
-void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel) {
+void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel) { try {
     delete static_cast<FTXUITableSelectionWrapper*>(sel);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_destroy"); }
 }
 
-void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.Border(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_border"); }
 }
 
-void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color) {
+void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     auto* col = static_cast<ftxui::Color*>(color);
     if (sw && col) {
         ftxui::Color c = *col;
         sw->selection.Border(to_ftxui_border_style(style), [c](ftxui::Element e) { return e | ftxui::color(c); });
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_border_color"); }
 }
 
-void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.SeparatorVertical(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_separator_vertical"); }
 }
 
-void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel) {
+void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.Decorate(ftxui::bold);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_bold"); }
 }
 
-void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel) {
+void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.DecorateCells(ftxui::align_right);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_cells_align_right"); }
 }
 
-void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color) {
+void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     auto* col = static_cast<ftxui::Color*>(color);
     if (sw && col) {
         ftxui::Color c = *col;
         sw->selection.DecorateCells([c](ftxui::Element e) { return e | ftxui::color(c); });
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_cells_color"); }
 }
 
-void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset) {
+void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     auto* col = static_cast<ftxui::Color*>(color);
     if (sw && col) {
         ftxui::Color c = *col;
         sw->selection.DecorateCellsAlternateRow([c](ftxui::Element e) { return e | ftxui::color(c); }, modulo, offset);
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_cells_color_alternate_row"); }
 }
 
-ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to) {
+ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectColumns(from, to)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_columns"); }
 }
 
-ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max) {
+ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max) { try {
     auto* tw = static_cast<FTXUITableWrapper*>(table);
     if (!tw) return nullptr;
     return static_cast<ftxui_table_selection_handle_t>(new FTXUITableSelectionWrapper{tw->table.SelectRectangle(col_min, col_max, row_min, row_max)});
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_select_rectangle"); }
 }
 
-void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.BorderLeft(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_border_left"); }
 }
 
-void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.BorderRight(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_border_right"); }
 }
 
-void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.BorderTop(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_border_top"); }
 }
 
-void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.BorderBottom(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_border_bottom"); }
 }
 
-void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.Separator(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_separator"); }
 }
 
-void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) {
+void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw) sw->selection.SeparatorHorizontal(to_ftxui_border_style(style));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_separator_horizontal"); }
 }
 
 static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
@@ -1863,90 +2108,105 @@ static ftxui::Decorator make_decorator(ftxui_decorator_callback_t cb, void* user
     };
 }
 
-void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.Decorate(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate"); }
 }
 
-void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateAlternateRow(make_decorator(cb, userdata, destructor), modulo, shift);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_alternate_row"); }
 }
 
-void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateAlternateColumn(make_decorator(cb, userdata, destructor), modulo, shift);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_alternate_column"); }
 }
 
-void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateBorder(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_border"); }
 }
 
-void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateBorderLeft(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_border_left"); }
 }
 
-void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateBorderRight(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_border_right"); }
 }
 
-void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateBorderTop(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_border_top"); }
 }
 
-void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateBorderBottom(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_border_bottom"); }
 }
 
-void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateSeparator(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_separator"); }
 }
 
-void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateSeparatorVertical(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_separator_vertical"); }
 }
 
-void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateSeparatorHorizontal(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_separator_horizontal"); }
 }
 
-void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateCells(make_decorator(cb, userdata, destructor));
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_cells"); }
 }
 
-void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateCellsAlternateRow(make_decorator(cb, userdata, destructor), modulo, shift);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_cells_alternate_row"); }
 }
 
-void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) {
+void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor) { try {
     auto* sw = static_cast<FTXUITableSelectionWrapper*>(sel);
     if (sw && cb) sw->selection.DecorateCellsAlternateColumn(make_decorator(cb, userdata, destructor), modulo, shift);
+} catch (...) { ftxui_c_fatal_exception("ftxui_table_selection_decorate_cells_alternate_column"); }
 }
 
 // =============================================================================
 // §17  Components — Basic
 // =============================================================================
 
-ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
     wrapper->component = ftxui::Button(label, [on_click, userdata, cleanup] {
         if (on_click) on_click(userdata);
     });
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_button"); }
 }
 
-ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options) {
+ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     auto opt = to_ftxui_button_option(options);
     auto click_cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
@@ -1955,6 +2215,7 @@ ftxui_component_handle_t ftxui_component_button_with_options(const char* label, 
     };
     wrapper->component = ftxui::Button(label, opt.on_click, opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_button_with_options"); }
 }
 
 static ftxui_element_handle_t button_transform_simple_wrapper(ftxui_entry_state_t c_state, void* userdata) {
@@ -1967,10 +2228,11 @@ static ftxui_element_handle_t button_transform_simple_wrapper(ftxui_entry_state_
     });
 }
 
-ftxui_button_option_t ftxui_button_option_simple() {
+ftxui_button_option_t ftxui_button_option_simple() { try {
     ftxui_button_option_t res = {};
     res.transform = button_transform_simple_wrapper;
     return res;
+} catch (...) { ftxui_c_fatal_exception("ftxui_button_option_simple"); }
 }
 
 static ftxui_element_handle_t button_transform_ascii_wrapper(ftxui_entry_state_t c_state, void* userdata) {
@@ -1980,10 +2242,11 @@ static ftxui_element_handle_t button_transform_ascii_wrapper(ftxui_entry_state_t
     });
 }
 
-ftxui_button_option_t ftxui_button_option_ascii() {
+ftxui_button_option_t ftxui_button_option_ascii() { try {
     ftxui_button_option_t res = {};
     res.transform = button_transform_ascii_wrapper;
     return res;
+} catch (...) { ftxui_c_fatal_exception("ftxui_button_option_ascii"); }
 }
 
 static ftxui_element_handle_t button_transform_border_wrapper(ftxui_entry_state_t c_state, void* userdata) {
@@ -1999,10 +2262,11 @@ static ftxui_element_handle_t button_transform_border_wrapper(ftxui_entry_state_
     });
 }
 
-ftxui_button_option_t ftxui_button_option_border() {
+ftxui_button_option_t ftxui_button_option_border() { try {
     ftxui_button_option_t res = {};
     res.transform = button_transform_border_wrapper;
     return res;
+} catch (...) { ftxui_c_fatal_exception("ftxui_button_option_border"); }
 }
 
 static ftxui_element_handle_t button_transform_animated_with_colors_wrapper(ftxui_entry_state_t c_state, void* userdata) {
@@ -2025,21 +2289,23 @@ static ftxui_animated_color_option_t create_animated_color_option(ftxui_color_ha
     return option;
 }
 
-ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t background, ftxui_color_handle_t foreground, ftxui_color_handle_t background_active, ftxui_color_handle_t foreground_active) {
+ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t background, ftxui_color_handle_t foreground, ftxui_color_handle_t background_active, ftxui_color_handle_t foreground_active) { try {
     ftxui_button_option_t res = {};
     res.animated_colors.foreground = create_animated_color_option(foreground, foreground_active);
     res.animated_colors.background = create_animated_color_option(background, background_active);
     res.transform = button_transform_animated_with_colors_wrapper;
     return res;
+} catch (...) { ftxui_c_fatal_exception("ftxui_button_option_animated"); }
 }
 
-ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked) {
+ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Checkbox(label, checked);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_checkbox"); }
 }
 
-ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::CheckboxOption opt = ftxui::CheckboxOption::Simple();
     opt.label = label ? label : "";
@@ -2052,37 +2318,43 @@ ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label,
         wrapper->component = attach_destructor(ftxui::Checkbox(opt), destructor, userdata);
     }
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_checkbox_with_change"); }
 }
 
 // --- String handle ---
 struct FTXUIStringWrapper { std::string value; };
 
-ftxui_string_handle_t ftxui_string_create(const char* initial) {
+ftxui_string_handle_t ftxui_string_create(const char* initial) { try {
     auto* w = new FTXUIStringWrapper();
     if (initial) w->value = initial;
     return static_cast<ftxui_string_handle_t>(w);
+} catch (...) { ftxui_c_fatal_exception("ftxui_string_create"); }
 }
-const char* ftxui_string_get(ftxui_string_handle_t str) {
+const char* ftxui_string_get(ftxui_string_handle_t str) { try {
     auto* w = static_cast<FTXUIStringWrapper*>(str);
     return w ? w->value.c_str() : nullptr;
+} catch (...) { ftxui_c_fatal_exception("ftxui_string_get"); }
 }
-void ftxui_string_set(ftxui_string_handle_t str, const char* value) {
+void ftxui_string_set(ftxui_string_handle_t str, const char* value) { try {
     auto* w = static_cast<FTXUIStringWrapper*>(str);
     if (w && value) w->value = value;
+} catch (...) { ftxui_c_fatal_exception("ftxui_string_set"); }
 }
-void ftxui_string_destroy(ftxui_string_handle_t str) {
+void ftxui_string_destroy(ftxui_string_handle_t str) { try {
     delete static_cast<FTXUIStringWrapper*>(str);
+} catch (...) { ftxui_c_fatal_exception("ftxui_string_destroy"); }
 }
 
-ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder) {
+ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder) { try {
     auto* str_wrapper = static_cast<FTXUIStringWrapper*>(content);
     if (!str_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     std::string ph = placeholder ? placeholder : "";
     wrapper->component = ftxui::Input(&str_wrapper->value, ph);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_input"); }
 }
-ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder) {
+ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder) { try {
     auto* str_wrapper = static_cast<FTXUIStringWrapper*>(content);
     if (!str_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -2091,9 +2363,10 @@ ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t co
     opt.password = true;
     wrapper->component = ftxui::Input(&str_wrapper->value, ph, opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_input_password"); }
 }
 
-ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts) {
+ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts) { try {
     auto* str_wrapper = static_cast<FTXUIStringWrapper*>(opts.content);
     if (!str_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -2123,9 +2396,10 @@ ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_
     }
     wrapper->component = ftxui::Input(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_input_with_options"); }
 }
 
-ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count, int* selected) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> toggle_entries;
     for (int i = 0; i < count; ++i) {
@@ -2133,15 +2407,17 @@ ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count,
     }
     wrapper->component = ftxui::Toggle(std::move(toggle_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_toggle"); }
 }
 
-ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment) {
+ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Slider(label, value, min, max, increment);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_slider"); }
 }
 
-ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::SliderOption<int> opt;
     opt.value = value;
@@ -2156,9 +2432,10 @@ ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int 
         wrapper->component = attach_destructor(ftxui::Slider(opt), destructor, userdata);
     }
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_slider_int_with_change"); }
 }
 
-ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::SliderOption<float> opt;
     opt.value = value;
@@ -2173,9 +2450,10 @@ ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, 
         wrapper->component = attach_destructor(ftxui::Slider(opt), destructor, userdata);
     }
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_slider_float_with_change"); }
 }
 
-ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> radio_entries;
     for (int i = 0; i < count; ++i) {
@@ -2183,9 +2461,10 @@ ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int coun
     }
     wrapper->component = ftxui::Radiobox(std::move(radio_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_radiobox"); }
 }
 
-ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::RadioboxOption opt = ftxui::RadioboxOption::Simple();
     std::vector<std::string> radio_entries;
@@ -2202,45 +2481,52 @@ ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entri
         wrapper->component = attach_destructor(ftxui::Radiobox(opt), destructor, userdata);
     }
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_radiobox_with_change"); }
 }
 
-ftxui_component_handle_t ftxui_component_container_vertical() {
+ftxui_component_handle_t ftxui_component_container_vertical() { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Vertical({});
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_container_vertical"); }
 }
 
-ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector) {
+ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Vertical({}, selector);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_container_vertical_focused"); }
 }
 
-ftxui_component_handle_t ftxui_component_container_horizontal() {
+ftxui_component_handle_t ftxui_component_container_horizontal() { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Horizontal({});
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_container_horizontal"); }
 }
 
-ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector) {
+ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Horizontal({}, selector);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_container_horizontal_focused"); }
 }
 
-ftxui_component_handle_t ftxui_component_container_tab(int* selected) {
+ftxui_component_handle_t ftxui_component_container_tab(int* selected) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Tab({}, selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_container_tab"); }
 }
 
-ftxui_component_handle_t ftxui_component_container_stacked() {
+ftxui_component_handle_t ftxui_component_container_stacked() { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Container::Stacked({});
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_container_stacked"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> menu_entries;
     for (int i = 0; i < count; ++i) {
@@ -2248,9 +2534,10 @@ ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, i
     }
     wrapper->component = ftxui::Menu(std::move(menu_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_ud, ftxui_destructor_t on_change_destructor, ftxui_callback_t on_enter, void* on_enter_ud, ftxui_destructor_t on_enter_destructor) {
+ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_ud, ftxui_destructor_t on_change_destructor, ftxui_callback_t on_enter, void* on_enter_ud, ftxui_destructor_t on_enter_destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::MenuOption opt = ftxui::MenuOption::Vertical();
     std::vector<std::string> menu_entries;
@@ -2275,15 +2562,17 @@ ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entrie
     }
     wrapper->component = ftxui::Menu(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu_with_callbacks"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu_entry(const char* label) {
+ftxui_component_handle_t ftxui_component_menu_entry(const char* label) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::MenuEntry(label);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu_entry"); }
 }
 
-ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int count, int* selected) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> dropdown_entries;
     for (int i = 0; i < count; ++i) {
@@ -2291,9 +2580,10 @@ ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int coun
     }
     wrapper->component = ftxui::Dropdown(std::move(dropdown_entries), selected);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_dropdown"); }
 }
 
-ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction) {
+ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::SliderOption<int> opt;
     opt.value = value;
@@ -2303,15 +2593,17 @@ ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int mi
     opt.direction = to_ftxui_direction(direction);
     wrapper->component = ftxui::Slider(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_slider_int_direction"); }
 }
 
-ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment) {
+ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Slider(label ? label : "", value, min, max, increment);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_slider_float"); }
 }
 
-ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive) {
+ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::SliderOption<float> opt;
     opt.value = value;
@@ -2323,45 +2615,50 @@ ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, fl
     if (color_inactive) opt.color_inactive = *static_cast<ftxui::Color*>(color_inactive);
     wrapper->component = ftxui::Slider(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_slider_float_direction"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     std::vector<std::string> v;
     for (int i = 0; i < count; ++i) v.push_back(entries[i] ? entries[i] : "");
     wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Horizontal());
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu_horizontal"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors) {
+ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     ftxui::MenuEntryOption opt;
     opt.animated_colors = to_ftxui_animated_colors(animated_colors);
     wrapper->component = ftxui::MenuEntry(label ? label : "", opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu_entry_animated"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected) { try {
     std::vector<std::string> v;
     for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::HorizontalAnimated());
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu_horizontal_animated"); }
 }
 
-ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected) {
+ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected) { try {
     std::vector<std::string> v;
     for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Menu(std::move(v), selected, ftxui::MenuOption::Toggle());
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_menu_toggle"); }
 }
 
 ftxui_component_handle_t ftxui_component_dropdown_custom(
     const char** entries, int count, int* selected,
     ftxui_dropdown_transform_callback_t transform, void* transform_userdata, ftxui_destructor_t transform_destructor,
     ftxui_button_transform_t entry_transform, void* entry_transform_userdata, ftxui_destructor_t entry_transform_destructor
-) {
+) { try {
     std::vector<std::string> v;
     for (int i = 0; i < count; i++) v.push_back(entries[i] ? entries[i] : "");
 
@@ -2408,65 +2705,72 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Dropdown(std::move(opt));
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_dropdown_custom"); }
 }
 
 // =============================================================================
 // §18  Components — Containers
 // =============================================================================
 
-ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
+ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) { try {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
     if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitLeft(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_resizable_split_left"); }
 }
 
-ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
+ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) { try {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
     if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitRight(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_resizable_split_right"); }
 }
 
-ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
+ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) { try {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
     if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitTop(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_resizable_split_top"); }
 }
 
-ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) {
+ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size) { try {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* back_wrapper = static_cast<FTXUIComponentWrapper*>(back);
     if (!main_wrapper || !back_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::ResizableSplitBottom(main_wrapper->component, back_wrapper->component, main_size);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_resizable_split_bottom"); }
 }
 
-ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show) {
+ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show) { try {
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
     if (!child_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Collapsible(label, child_wrapper->component, show);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_collapsible"); }
 }
 
-ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show) {
+ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show) { try {
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
     if (!child_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Maybe(child_wrapper->component, show);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_maybe"); }
 }
 
-ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata, ftxui_destructor_t destructor) { try {
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
     if (!child_wrapper || !predicate) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -2475,35 +2779,39 @@ ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child
         return predicate(userdata);
     });
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_maybe_fn"); }
 }
 
-ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal) {
+ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal) { try {
     auto* main_wrapper = static_cast<FTXUIComponentWrapper*>(main);
     auto* modal_wrapper = static_cast<FTXUIComponentWrapper*>(modal);
     if (!main_wrapper || !modal_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Modal(main_wrapper->component, modal_wrapper->component, show_modal);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_modal"); }
 }
 
-void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_handle_t child) {
+void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_handle_t child) { try {
     auto* cont_wrapper = static_cast<FTXUIComponentWrapper*>(container);
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
     if (cont_wrapper && child_wrapper) {
         cont_wrapper->component->Add(child_wrapper->component);
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_container_add"); }
 }
 
-ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover) {
+ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover) { try {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner_wrapper) return nullptr;
 
     auto* wrapper = new FTXUIComponentWrapper();
     wrapper->component = ftxui::Hoverable(inner_wrapper->component, hover);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_hoverable"); }
 }
 
-ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor, ftxui_callback_t on_leave, void* on_leave_userdata, ftxui_destructor_t on_leave_destructor) {
+ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor, ftxui_callback_t on_leave, void* on_leave_userdata, ftxui_destructor_t on_leave_destructor) { try {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner_wrapper) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -2515,9 +2823,10 @@ ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_han
         [on_leave, on_leave_userdata, leave_cleanup] { if (on_leave) on_leave(on_leave_userdata); }
     );
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_hoverable_callbacks"); }
 }
 
-ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata, ftxui_destructor_t destructor) { try {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner_wrapper || !on_change) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -2527,13 +2836,15 @@ ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle
         [on_change, userdata, cleanup](bool hovered) { on_change(hovered, userdata); }
     );
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_hoverable_change"); }
 }
 
-ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component) {
+ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component) { try {
     auto* inner_wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner_wrapper) return nullptr;
 
     return create_element_wrapper(inner_wrapper->component->Render());
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_render"); }
 }
 
 // Generic helper to apply a modifier to a component and return a new wrapped component
@@ -2550,7 +2861,7 @@ static ftxui_component_handle_t apply_component_modifier(ftxui_component_handle_
     return static_cast<ftxui_component_handle_t>(new_wrapper);
 }
 
-ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) { try {
     auto* wrapper = new FTXUIComponentWrapper();
     auto cleanup = std::make_shared<CallbackCleanup>(destructor, userdata);
     auto component = ftxui::Renderer([callback, userdata, cleanup](bool focused) {
@@ -2562,9 +2873,10 @@ ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render
     });
     wrapper->component = std::move(component);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_renderer_focusable"); }
 }
 
-ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor) { try {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner || !callback) return nullptr;
     ftxui::Component inner_comp = inner->component;
@@ -2583,9 +2895,10 @@ ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_han
     });
     wrapper->component = std::move(res);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_renderer_with_inner"); }
 }
 
-ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option) {
+ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option) { try {
     auto* main_w = static_cast<FTXUIComponentWrapper*>(option.main);
     auto* back_w = static_cast<FTXUIComponentWrapper*>(option.back);
     if (!main_w || !back_w) return nullptr;
@@ -2611,9 +2924,10 @@ ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_spl
     }
     wrapper->component = ftxui::ResizableSplit(opt);
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_resizable_split_opt"); }
 }
 
-ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) {
+ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) { try {
     auto* win_wrapper = new FTXUIWindowWrapper();
     if (options.title) win_wrapper->title = options.title;
 
@@ -2641,6 +2955,7 @@ ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) 
     wrapper->component = ftxui::Renderer(win_wrapper->component,
         [win_wrapper_shared] { return win_wrapper_shared->component->Render(); });
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_window"); }
 }
 
 // =============================================================================
@@ -2650,9 +2965,10 @@ ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options) 
 
 
 
-void ftxui_element_destroy(ftxui_element_handle_t element) {
+void ftxui_element_destroy(ftxui_element_handle_t element) { try {
     auto* wrapper = static_cast<FTXUIElementWrapper*>(element);
     delete wrapper;
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_destroy"); }
 }
 
 
@@ -2660,125 +2976,144 @@ void ftxui_element_destroy(ftxui_element_handle_t element) {
 // §20  Component Decorators
 // =============================================================================
 
-ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::dim;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_dim"); }
 }
 
-ftxui_component_handle_t ftxui_component_blink(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_blink(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::blink;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_blink"); }
 }
 
-ftxui_component_handle_t ftxui_component_strikethrough(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_strikethrough(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::strikethrough;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_strikethrough"); }
 }
 
-ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::nothing(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_nothing"); }
 }
 
-ftxui_component_handle_t ftxui_component_border(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::border(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border"); }
 }
 
-ftxui_component_handle_t ftxui_component_border_light(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border_light(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::borderLight(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border_light"); }
 }
 
-ftxui_component_handle_t ftxui_component_border_dashed(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border_dashed(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::borderDashed(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border_dashed"); }
 }
 
-ftxui_component_handle_t ftxui_component_border_heavy(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border_heavy(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::borderHeavy(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border_heavy"); }
 }
 
-ftxui_component_handle_t ftxui_component_border_double(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border_double(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::borderDouble(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border_double"); }
 }
 
-ftxui_component_handle_t ftxui_component_border_rounded(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border_rounded(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::borderRounded(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border_rounded"); }
 }
 
-ftxui_component_handle_t ftxui_component_border_empty(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_border_empty(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::borderEmpty(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_border_empty"); }
 }
 
-ftxui_component_handle_t ftxui_component_frame(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_frame(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::frame;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_frame"); }
 }
 
-ftxui_component_handle_t ftxui_component_flex(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_flex(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::flex;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_flex"); }
 }
 
-ftxui_component_handle_t ftxui_component_bold(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_bold(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::bold;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_bold"); }
 }
 
-ftxui_component_handle_t ftxui_component_inverted(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_inverted(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::inverted;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_inverted"); }
 }
 
-ftxui_component_handle_t ftxui_component_underlined(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_underlined(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::underlined;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_underlined"); }
 }
 
-ftxui_component_handle_t ftxui_component_color(ftxui_component_handle_t component, ftxui_color_handle_t color_handle) {
+ftxui_component_handle_t ftxui_component_color(ftxui_component_handle_t component, ftxui_color_handle_t color_handle) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color_handle);
     if (!color_ptr) return nullptr;
     return apply_component_modifier(component, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::color(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_color"); }
 }
 
-ftxui_component_handle_t ftxui_component_bgcolor(ftxui_component_handle_t component, ftxui_color_handle_t color_handle) {
+ftxui_component_handle_t ftxui_component_bgcolor(ftxui_component_handle_t component, ftxui_color_handle_t color_handle) { try {
     auto* color_ptr = static_cast<ftxui::Color*>(color_handle);
     if (!color_ptr) return nullptr;
     return apply_component_modifier(component, [color_ptr](ftxui::Element el) {
         return std::move(el) | ftxui::bgcolor(*color_ptr);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_bgcolor"); }
 }
 
-ftxui_component_handle_t ftxui_component_vscroll_indicator(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_vscroll_indicator(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return std::move(el) | ftxui::vscroll_indicator;
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_vscroll_indicator"); }
 }
 
-ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t component, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) {
+ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t component, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) { try {
     return apply_component_modifier(component, [width_or_height_enum, constraint_type, value](ftxui::Element el) {
         ftxui::WidthOrHeight width_or_height;
         ftxui::Constraint constraint;
@@ -2793,138 +3128,167 @@ ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t compo
         }
         return el | ftxui::size(width_or_height, constraint, value);
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_set_size"); }
 }
 
-ftxui_component_handle_t ftxui_component_hcenter(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_hcenter(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::hcenter(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_hcenter"); }
 }
 
-ftxui_component_handle_t ftxui_component_vcenter(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_vcenter(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::vcenter(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_vcenter"); }
 }
 
-ftxui_component_handle_t ftxui_component_center(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_center(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::center(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_center"); }
 }
 
-ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t component) { try {
     return apply_component_modifier(component, [](ftxui::Element el) {
         return ftxui::align_right(std::move(el));
     });
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_align_right"); }
 }
 
 // =============================================================================
 // §21  Events  (ftxui/component/event.hpp)
 // =============================================================================
-const char* ftxui_event_input(ftxui_event_handle_t event) {
+const char* ftxui_event_input(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w ? w->event.input().c_str() : nullptr;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_input"); }
 }
-const char* ftxui_event_debug_string(ftxui_event_handle_t event) {
+const char* ftxui_event_debug_string(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w ? w->debug_str.c_str() : nullptr;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_debug_string"); }
 }
-bool ftxui_event_is_character(ftxui_event_handle_t event) {
+bool ftxui_event_is_character(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_character();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_character"); }
 }
-const char* ftxui_event_character(ftxui_event_handle_t event) {
+const char* ftxui_event_character(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_character()) ? w->character_str.c_str() : nullptr;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_character"); }
 }
-bool ftxui_event_is_mouse(ftxui_event_handle_t event) {
+bool ftxui_event_is_mouse(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_mouse();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_mouse"); }
 }
-int ftxui_event_mouse_x(ftxui_event_handle_t event) {
+int ftxui_event_mouse_x(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_mouse()) ? w->event.mouse().x : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_x"); }
 }
-int ftxui_event_mouse_y(ftxui_event_handle_t event) {
+int ftxui_event_mouse_y(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_mouse()) ? w->event.mouse().y : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_y"); }
 }
-ftxui_mouse_button_t ftxui_event_mouse_button(ftxui_event_handle_t event) {
+ftxui_mouse_button_t ftxui_event_mouse_button(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !w->event.is_mouse()) return FTXUI_MOUSE_BUTTON_NONE;
     return (ftxui_mouse_button_t)w->event.mouse().button;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_button"); }
 }
-ftxui_mouse_motion_t ftxui_event_mouse_motion(ftxui_event_handle_t event) {
+ftxui_mouse_motion_t ftxui_event_mouse_motion(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !w->event.is_mouse()) return FTXUI_MOUSE_MOTION_RELEASED;
     return (ftxui_mouse_motion_t)w->event.mouse().motion;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_motion"); }
 }
-bool ftxui_event_mouse_shift(ftxui_event_handle_t event) {
+bool ftxui_event_mouse_shift(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_mouse() && w->event.mouse().shift;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_shift"); }
 }
-bool ftxui_event_mouse_meta(ftxui_event_handle_t event) {
+bool ftxui_event_mouse_meta(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_mouse() && w->event.mouse().meta;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_meta"); }
 }
-bool ftxui_event_mouse_control(ftxui_event_handle_t event) {
+bool ftxui_event_mouse_control(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_mouse() && w->event.mouse().control;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_mouse_control"); }
 }
-bool ftxui_event_is_cursor_position(ftxui_event_handle_t event) {
+bool ftxui_event_is_cursor_position(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_cursor_position();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_cursor_position"); }
 }
-int ftxui_event_cursor_x(ftxui_event_handle_t event) {
+int ftxui_event_cursor_x(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_cursor_position()) ? w->event.cursor_x() : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_cursor_x"); }
 }
-int ftxui_event_cursor_y(ftxui_event_handle_t event) {
+int ftxui_event_cursor_y(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_cursor_position()) ? w->event.cursor_y() : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_cursor_y"); }
 }
-bool ftxui_event_is_cursor_shape(ftxui_event_handle_t event) {
+bool ftxui_event_is_cursor_shape(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.is_cursor_shape();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_cursor_shape"); }
 }
-int ftxui_event_cursor_shape(ftxui_event_handle_t event) {
+int ftxui_event_cursor_shape(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return (w && w->event.is_cursor_shape()) ? w->event.cursor_shape() : 0;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_cursor_shape"); }
 }
-bool ftxui_event_is_terminal_name_version(ftxui_event_handle_t event) {
+bool ftxui_event_is_terminal_name_version(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.IsTerminalNameVersion();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_terminal_name_version"); }
 }
-const char* ftxui_event_terminal_name(ftxui_event_handle_t event) {
+const char* ftxui_event_terminal_name(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !w->event.IsTerminalNameVersion()) return "";
     return w->event.TerminalName().c_str();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_terminal_name"); }
 }
-int ftxui_event_terminal_version(ftxui_event_handle_t event) {
+int ftxui_event_terminal_version(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !w->event.IsTerminalNameVersion()) return 0;
     return w->event.TerminalVersion();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_terminal_version"); }
 }
-bool ftxui_event_is_terminal_emulator(ftxui_event_handle_t event) {
+bool ftxui_event_is_terminal_emulator(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.IsTerminalEmulator();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_terminal_emulator"); }
 }
-const char* ftxui_event_terminal_emulator_name(ftxui_event_handle_t event) {
+const char* ftxui_event_terminal_emulator_name(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !w->event.IsTerminalEmulator()) return "";
     return w->event.TerminalEmulatorName().c_str();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_terminal_emulator_name"); }
 }
-const char* ftxui_event_terminal_emulator_version(ftxui_event_handle_t event) {
+const char* ftxui_event_terminal_emulator_version(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !w->event.IsTerminalEmulator()) return "";
     return w->event.TerminalEmulatorVersion().c_str();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_terminal_emulator_version"); }
 }
-bool ftxui_event_is_terminal_capabilities(ftxui_event_handle_t event) {
+bool ftxui_event_is_terminal_capabilities(ftxui_event_handle_t event) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     return w && w->event.IsTerminalCapabilities();
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_is_terminal_capabilities"); }
 }
-int* ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count) {
+int* ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count) { try {
     auto* w = static_cast<FTXUIEventWrapper*>(event);
     if (!w || !count || !w->event.IsTerminalCapabilities()) {
         if (count) *count = 0;
@@ -2936,56 +3300,61 @@ int* ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count) {
     int* result = (int*)std::malloc(caps.size() * sizeof(int));
     for (size_t i = 0; i < caps.size(); i++) result[i] = caps[i];
     return result;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_terminal_capabilities"); }
 }
-void ftxui_event_destroy(ftxui_event_handle_t event) {
+void ftxui_event_destroy(ftxui_event_handle_t event) { try {
     delete static_cast<FTXUIEventWrapper*>(event);
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_destroy"); }
 }
-bool ftxui_event_equal(ftxui_event_handle_t a, ftxui_event_handle_t b) {
+bool ftxui_event_equal(ftxui_event_handle_t a, ftxui_event_handle_t b) { try {
     auto* wa = static_cast<FTXUIEventWrapper*>(a);
     auto* wb = static_cast<FTXUIEventWrapper*>(b);
     if (!wa || !wb) return false;
     return wa->event == wb->event;
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_equal"); }
 }
-ftxui_event_handle_t ftxui_event_arrow_left(void)       { return new FTXUIEventWrapper(ftxui::Event::ArrowLeft); }
-ftxui_event_handle_t ftxui_event_arrow_right(void)      { return new FTXUIEventWrapper(ftxui::Event::ArrowRight); }
-ftxui_event_handle_t ftxui_event_arrow_up(void)         { return new FTXUIEventWrapper(ftxui::Event::ArrowUp); }
-ftxui_event_handle_t ftxui_event_arrow_down(void)       { return new FTXUIEventWrapper(ftxui::Event::ArrowDown); }
-ftxui_event_handle_t ftxui_event_arrow_left_ctrl(void)  { return new FTXUIEventWrapper(ftxui::Event::ArrowLeftCtrl); }
-ftxui_event_handle_t ftxui_event_arrow_right_ctrl(void) { return new FTXUIEventWrapper(ftxui::Event::ArrowRightCtrl); }
-ftxui_event_handle_t ftxui_event_arrow_up_ctrl(void)    { return new FTXUIEventWrapper(ftxui::Event::ArrowUpCtrl); }
-ftxui_event_handle_t ftxui_event_arrow_down_ctrl(void)  { return new FTXUIEventWrapper(ftxui::Event::ArrowDownCtrl); }
-ftxui_event_handle_t ftxui_event_backspace(void)        { return new FTXUIEventWrapper(ftxui::Event::Backspace); }
-ftxui_event_handle_t ftxui_event_delete(void)           { return new FTXUIEventWrapper(ftxui::Event::Delete); }
-ftxui_event_handle_t ftxui_event_return(void)           { return new FTXUIEventWrapper(ftxui::Event::Return); }
-ftxui_event_handle_t ftxui_event_escape(void)           { return new FTXUIEventWrapper(ftxui::Event::Escape); }
-ftxui_event_handle_t ftxui_event_tab(void)              { return new FTXUIEventWrapper(ftxui::Event::Tab); }
-ftxui_event_handle_t ftxui_event_tab_reverse(void)      { return new FTXUIEventWrapper(ftxui::Event::TabReverse); }
-ftxui_event_handle_t ftxui_event_insert(void)           { return new FTXUIEventWrapper(ftxui::Event::Insert); }
-ftxui_event_handle_t ftxui_event_home(void)             { return new FTXUIEventWrapper(ftxui::Event::Home); }
-ftxui_event_handle_t ftxui_event_end(void)              { return new FTXUIEventWrapper(ftxui::Event::End); }
-ftxui_event_handle_t ftxui_event_page_up(void)          { return new FTXUIEventWrapper(ftxui::Event::PageUp); }
-ftxui_event_handle_t ftxui_event_page_down(void)        { return new FTXUIEventWrapper(ftxui::Event::PageDown); }
-ftxui_event_handle_t ftxui_event_f1(void)               { return new FTXUIEventWrapper(ftxui::Event::F1); }
-ftxui_event_handle_t ftxui_event_f2(void)               { return new FTXUIEventWrapper(ftxui::Event::F2); }
-ftxui_event_handle_t ftxui_event_f3(void)               { return new FTXUIEventWrapper(ftxui::Event::F3); }
-ftxui_event_handle_t ftxui_event_f4(void)               { return new FTXUIEventWrapper(ftxui::Event::F4); }
-ftxui_event_handle_t ftxui_event_f5(void)               { return new FTXUIEventWrapper(ftxui::Event::F5); }
-ftxui_event_handle_t ftxui_event_f6(void)               { return new FTXUIEventWrapper(ftxui::Event::F6); }
-ftxui_event_handle_t ftxui_event_f7(void)               { return new FTXUIEventWrapper(ftxui::Event::F7); }
-ftxui_event_handle_t ftxui_event_f8(void)               { return new FTXUIEventWrapper(ftxui::Event::F8); }
-ftxui_event_handle_t ftxui_event_f9(void)               { return new FTXUIEventWrapper(ftxui::Event::F9); }
-ftxui_event_handle_t ftxui_event_f10(void)              { return new FTXUIEventWrapper(ftxui::Event::F10); }
-ftxui_event_handle_t ftxui_event_f11(void)              { return new FTXUIEventWrapper(ftxui::Event::F11); }
-ftxui_event_handle_t ftxui_event_f12(void)              { return new FTXUIEventWrapper(ftxui::Event::F12); }
-ftxui_event_handle_t ftxui_event_custom(void)           { return new FTXUIEventWrapper(ftxui::Event::Custom); }
-ftxui_event_handle_t ftxui_event_character_from_char(char c) {
+ftxui_event_handle_t ftxui_event_arrow_left(void)       { try { return new FTXUIEventWrapper(ftxui::Event::ArrowLeft);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_left"); } }
+ftxui_event_handle_t ftxui_event_arrow_right(void)      { try { return new FTXUIEventWrapper(ftxui::Event::ArrowRight);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_right"); } }
+ftxui_event_handle_t ftxui_event_arrow_up(void)         { try { return new FTXUIEventWrapper(ftxui::Event::ArrowUp);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_up"); } }
+ftxui_event_handle_t ftxui_event_arrow_down(void)       { try { return new FTXUIEventWrapper(ftxui::Event::ArrowDown);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_down"); } }
+ftxui_event_handle_t ftxui_event_arrow_left_ctrl(void)  { try { return new FTXUIEventWrapper(ftxui::Event::ArrowLeftCtrl);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_left_ctrl"); } }
+ftxui_event_handle_t ftxui_event_arrow_right_ctrl(void) { try { return new FTXUIEventWrapper(ftxui::Event::ArrowRightCtrl);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_right_ctrl"); } }
+ftxui_event_handle_t ftxui_event_arrow_up_ctrl(void)    { try { return new FTXUIEventWrapper(ftxui::Event::ArrowUpCtrl);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_up_ctrl"); } }
+ftxui_event_handle_t ftxui_event_arrow_down_ctrl(void)  { try { return new FTXUIEventWrapper(ftxui::Event::ArrowDownCtrl);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_arrow_down_ctrl"); } }
+ftxui_event_handle_t ftxui_event_backspace(void)        { try { return new FTXUIEventWrapper(ftxui::Event::Backspace);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_backspace"); } }
+ftxui_event_handle_t ftxui_event_delete(void)           { try { return new FTXUIEventWrapper(ftxui::Event::Delete);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_delete"); } }
+ftxui_event_handle_t ftxui_event_return(void)           { try { return new FTXUIEventWrapper(ftxui::Event::Return);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_return"); } }
+ftxui_event_handle_t ftxui_event_escape(void)           { try { return new FTXUIEventWrapper(ftxui::Event::Escape);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_escape"); } }
+ftxui_event_handle_t ftxui_event_tab(void)              { try { return new FTXUIEventWrapper(ftxui::Event::Tab);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_tab"); } }
+ftxui_event_handle_t ftxui_event_tab_reverse(void)      { try { return new FTXUIEventWrapper(ftxui::Event::TabReverse);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_tab_reverse"); } }
+ftxui_event_handle_t ftxui_event_insert(void)           { try { return new FTXUIEventWrapper(ftxui::Event::Insert);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_insert"); } }
+ftxui_event_handle_t ftxui_event_home(void)             { try { return new FTXUIEventWrapper(ftxui::Event::Home);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_home"); } }
+ftxui_event_handle_t ftxui_event_end(void)              { try { return new FTXUIEventWrapper(ftxui::Event::End);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_end"); } }
+ftxui_event_handle_t ftxui_event_page_up(void)          { try { return new FTXUIEventWrapper(ftxui::Event::PageUp);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_page_up"); } }
+ftxui_event_handle_t ftxui_event_page_down(void)        { try { return new FTXUIEventWrapper(ftxui::Event::PageDown);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_page_down"); } }
+ftxui_event_handle_t ftxui_event_f1(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F1);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f1"); } }
+ftxui_event_handle_t ftxui_event_f2(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F2);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f2"); } }
+ftxui_event_handle_t ftxui_event_f3(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F3);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f3"); } }
+ftxui_event_handle_t ftxui_event_f4(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F4);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f4"); } }
+ftxui_event_handle_t ftxui_event_f5(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F5);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f5"); } }
+ftxui_event_handle_t ftxui_event_f6(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F6);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f6"); } }
+ftxui_event_handle_t ftxui_event_f7(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F7);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f7"); } }
+ftxui_event_handle_t ftxui_event_f8(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F8);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f8"); } }
+ftxui_event_handle_t ftxui_event_f9(void)               { try { return new FTXUIEventWrapper(ftxui::Event::F9);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f9"); } }
+ftxui_event_handle_t ftxui_event_f10(void)              { try { return new FTXUIEventWrapper(ftxui::Event::F10);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f10"); } }
+ftxui_event_handle_t ftxui_event_f11(void)              { try { return new FTXUIEventWrapper(ftxui::Event::F11);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f11"); } }
+ftxui_event_handle_t ftxui_event_f12(void)              { try { return new FTXUIEventWrapper(ftxui::Event::F12);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_f12"); } }
+ftxui_event_handle_t ftxui_event_custom(void)           { try { return new FTXUIEventWrapper(ftxui::Event::Custom);  } catch (...) { ftxui_c_fatal_exception("ftxui_event_custom"); } }
+ftxui_event_handle_t ftxui_event_character_from_char(char c) { try {
     return new FTXUIEventWrapper(ftxui::Event::Character(c));
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_character_from_char"); }
 }
-ftxui_event_handle_t ftxui_event_special(const char* input) {
+ftxui_event_handle_t ftxui_event_special(const char* input) { try {
     if (!input) return nullptr;
     return new FTXUIEventWrapper(ftxui::Event::Special(input));
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_special"); }
 }
-ftxui_event_handle_t ftxui_event_ctrl_char(char c) {
+ftxui_event_handle_t ftxui_event_ctrl_char(char c) { try {
     if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
     switch (c) {
         case 'a': return new FTXUIEventWrapper(ftxui::Event::CtrlA);
@@ -3016,8 +3385,9 @@ ftxui_event_handle_t ftxui_event_ctrl_char(char c) {
         case 'z': return new FTXUIEventWrapper(ftxui::Event::CtrlZ);
         default:  return nullptr;
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_ctrl_char"); }
 }
-ftxui_event_handle_t ftxui_event_alt_char(char c) {
+ftxui_event_handle_t ftxui_event_alt_char(char c) { try {
     if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
     switch (c) {
         case 'a': return new FTXUIEventWrapper(ftxui::Event::AltA);
@@ -3048,13 +3418,14 @@ ftxui_event_handle_t ftxui_event_alt_char(char c) {
         case 'z': return new FTXUIEventWrapper(ftxui::Event::AltZ);
         default:  return nullptr;
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_event_alt_char"); }
 }
 
 // =============================================================================
 // §22  Animation  (ftxui/component/animation.hpp)
 // =============================================================================
 
-ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type) {
+ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type) { try {
     switch (type) {
         case FTXUI_EASING_LINEAR: return ftxui::animation::easing::Linear;
         case FTXUI_EASING_QUADRATIC_IN: return ftxui::animation::easing::QuadraticIn;
@@ -3089,9 +3460,10 @@ ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t t
         case FTXUI_EASING_BOUNCE_IN_OUT: return ftxui::animation::easing::BounceInOut;
         default: return ftxui::animation::easing::Linear; // Default to Linear
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_easing_function_get"); }
 }
 
-ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor) {
+ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor) { try {
     auto* inner = static_cast<FTXUIComponentWrapper*>(component);
     if (!inner || !callback) return nullptr;
     auto* wrapper = new FTXUIComponentWrapper();
@@ -3103,29 +3475,33 @@ ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t co
         return result;
     });
     return static_cast<ftxui_component_handle_t>(wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_catch_event"); }
 }
 
 // --- Component Focus & Active State API ---
-bool ftxui_component_focused(ftxui_component_handle_t component) {
+bool ftxui_component_focused(ftxui_component_handle_t component) { try {
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!wrapper || !wrapper->component) return false;
     return wrapper->component->Focused();
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_focused"); }
 }
 
-bool ftxui_component_active(ftxui_component_handle_t component) {
+bool ftxui_component_active(ftxui_component_handle_t component) { try {
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!wrapper || !wrapper->component) return false;
     return wrapper->component->Active();
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_active"); }
 }
 
-void ftxui_component_take_focus(ftxui_component_handle_t component) {
+void ftxui_component_take_focus(ftxui_component_handle_t component) { try {
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (wrapper && wrapper->component) {
         wrapper->component->TakeFocus();
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_take_focus"); }
 }
 
-ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t component) {
+ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t component) { try {
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     if (!wrapper || !wrapper->component) return nullptr;
     auto child = wrapper->component->ActiveChild();
@@ -3133,13 +3509,15 @@ ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t c
     auto* child_wrapper = new FTXUIComponentWrapper();
     child_wrapper->component = child;
     return static_cast<ftxui_component_handle_t>(child_wrapper);
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_active_child"); }
 }
 
-void ftxui_component_set_active_child(ftxui_component_handle_t component, ftxui_component_handle_t child) {
+void ftxui_component_set_active_child(ftxui_component_handle_t component, ftxui_component_handle_t child) { try {
     auto* wrapper = static_cast<FTXUIComponentWrapper*>(component);
     auto* child_wrapper = static_cast<FTXUIComponentWrapper*>(child);
     if (wrapper && wrapper->component && child_wrapper && child_wrapper->component) {
         wrapper->component->SetActiveChild(child_wrapper->component);
     }
+} catch (...) { ftxui_c_fatal_exception("ftxui_component_set_active_child"); }
 }
 

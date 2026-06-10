@@ -33,6 +33,22 @@ All 22 FTXUI modules are wrapped:
 
 See [API_MAPPING.md](API_MAPPING.md) for the full symbol-by-symbol mapping between the FTXUI C++ API and the ftxui-c C API.
 
+## Ownership rules
+
+These conventions mirror FTXUI's own semantics (`Element` is moved, `Component` is a `shared_ptr`). Getting them right matters: misuse is a use-after-free or double-free, not a catchable error.
+
+| Handle type | Semantics |
+|---|---|
+| **Element** | **Consumed** by every function that takes one (layout containers, all decorators, `window`). The handle is invalid afterwards — do not reuse it or call `ftxui_element_destroy` on it. Returned element handles are owned by the caller: pass them on or destroy them. |
+| **Component** | **Borrowed**, never consumed. The underlying component is reference counted; the input handle stays valid and must still be freed with `ftxui_component_destroy`. |
+| Color, gradient, canvas, table, event | **Borrowed** (values are copied internally where needed); free them with their `*_destroy` functions. |
+
+State-binding pointers (`bool* checked`, `int* selected`, `float* value`, string handles, …) are **not copied**. The pointed-to memory must stay valid, at a stable address, for the whole lifetime of the component bound to it. From Kotlin/Native, allocate with `nativeHeap.alloc<BooleanVar>()` (or similar) rather than pinning Kotlin heap objects — pins do not survive across the event loop.
+
+## Error handling
+
+No C++ exception ever crosses the C API. If an unrecoverable internal error occurs (e.g. out of memory), the library prints a diagnostic to stderr and aborts. The `ftxui_app_create_*` constructors return `NULL` on failure instead.
+
 ## Installation
 
 ### Homebrew (macOS and Linux)
@@ -71,11 +87,19 @@ cc myapp.c -Iinclude -Llib \
   -lstdc++ -o myapp
 ```
 
+Supported targets: Linux x86_64/arm64 and macOS arm64/x86_64. Windows is currently out of scope (the header carries the `dllexport`/`dllimport` plumbing, but nothing is built or tested there).
+
+### Kotlin/Native
+
+A ready-made cinterop definition, [`ftxui_c.def`](ftxui_c.def), ships in the repo and in every release archive (under `share/ftxui-c/`). It documents the package name, the static archives to link, and the C++-runtime linker flags; see the comments inside for the Gradle wiring.
+
+Static linking is the recommended path for Kotlin/Native. The static archive includes a weak fallback for glibc's `__libc_single_threaded` symbol (see `compat.c`) because the Kotlin/Native sysroot targets glibc 2.19; the shared library does not need or include it.
+
 ### Build from source
 
 #### Prerequisites
 
-- CMake 3.12+
+- CMake 3.13+
 - A C++17 compiler (GCC, Clang)
 
 #### Steps

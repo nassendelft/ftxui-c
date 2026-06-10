@@ -4,6 +4,59 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// =============================================================================
+// Export macro
+// =============================================================================
+// FTXUI_C_API marks every public function. On Windows it expands to
+// dllexport/dllimport (define FTXUI_C_BUILD_SHARED when building the DLL,
+// FTXUI_C_USE_SHARED when consuming it); on ELF/Mach-O it re-exposes the API
+// when the library is built with -fvisibility=hidden.
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #if defined(FTXUI_C_BUILD_SHARED)
+    #define FTXUI_C_API __declspec(dllexport)
+  #elif defined(FTXUI_C_USE_SHARED)
+    #define FTXUI_C_API __declspec(dllimport)
+  #else
+    #define FTXUI_C_API
+  #endif
+#elif defined(__GNUC__) || defined(__clang__)
+  #define FTXUI_C_API __attribute__((visibility("default")))
+#else
+  #define FTXUI_C_API
+#endif
+
+// =============================================================================
+// Ownership and error-handling conventions
+// =============================================================================
+//
+// ELEMENT handles are CONSUMED by every function that takes one as input:
+// layout containers (hbox, vbox, gridbox, flexbox, ...), all decorators
+// (border, color, bold, size, ...), and window. After passing an element
+// handle to such a function the handle is invalid: do not reuse it and do not
+// call ftxui_element_destroy on it (that would be a double free). Functions
+// returning ftxui_element_handle_t hand a new, caller-owned handle back;
+// either pass it on (consuming it again) or free it with
+// ftxui_element_destroy. This mirrors FTXUI's move-semantics for Element.
+//
+// COMPONENT handles are BORROWED, never consumed. Functions taking a
+// component (containers, component decorators, renderer, ...) share the
+// underlying reference-counted component; the input handle stays valid and
+// must still be freed with ftxui_component_destroy. Destroying a handle is
+// safe even while other components still reference the same component.
+//
+// COLOR, GRADIENT, CANVAS, TABLE and EVENT handles are BORROWED (their value
+// is copied internally where needed) and must be freed with their respective
+// *_destroy functions by the caller.
+//
+// RAW POINTERS used for state binding (bool* checked, int* selected,
+// float* value, ...) are NOT copied. The pointed-to memory must remain valid
+// and at a stable address for the entire lifetime of the component using it.
+//
+// ERRORS: no C++ exception ever crosses this API. If an unrecoverable
+// internal error occurs (e.g. out of memory), the library prints a
+// diagnostic to stderr and aborts. The ftxui_app_create_* constructors
+// instead return NULL on failure.
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -101,93 +154,93 @@ typedef enum {
 // §1  App  (ftxui/component/app.hpp)
 // =============================================================================
 
-ftxui_app_handle_t ftxui_app_create_fullscreen();
-ftxui_app_handle_t ftxui_app_create_fit_component();
-ftxui_app_handle_t ftxui_app_create_terminal_output();
-ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h);
-ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen();
-ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen();
+FTXUI_C_API ftxui_app_handle_t ftxui_app_create_fullscreen(void);
+FTXUI_C_API ftxui_app_handle_t ftxui_app_create_fit_component(void);
+FTXUI_C_API ftxui_app_handle_t ftxui_app_create_terminal_output(void);
+FTXUI_C_API ftxui_app_handle_t ftxui_app_create_fixed_size(int w, int h);
+FTXUI_C_API ftxui_app_handle_t ftxui_app_create_fullscreen_primary_screen(void);
+FTXUI_C_API ftxui_app_handle_t ftxui_app_create_fullscreen_alternate_screen(void);
 
-void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component);
-void ftxui_app_exit(ftxui_app_handle_t app);
-void ftxui_app_destroy(ftxui_app_handle_t app);
+FTXUI_C_API void ftxui_app_loop(ftxui_app_handle_t app, ftxui_component_handle_t component);
+FTXUI_C_API void ftxui_app_exit(ftxui_app_handle_t app);
+FTXUI_C_API void ftxui_app_destroy(ftxui_app_handle_t app);
 
 // --- App Configuration (call before ftxui_app_loop) ---
 
 /**
  * @brief Enable or disable mouse event tracking. Enabled by default.
  */
-void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable);
+FTXUI_C_API void ftxui_app_track_mouse(ftxui_app_handle_t app, bool enable);
 
 /**
  * @brief Enable or disable automatic piped input handling. Enabled by default.
  */
-void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable);
+FTXUI_C_API void ftxui_app_handle_piped_input(ftxui_app_handle_t app, bool enable);
 
 /**
  * @brief Force FTXUI to handle or not handle Ctrl-C regardless of component event handling.
  */
-void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force);
+FTXUI_C_API void ftxui_app_force_handle_ctrl_c(ftxui_app_handle_t app, bool force);
 
 /**
  * @brief Force FTXUI to handle or not handle Ctrl-Z regardless of component event handling.
  */
-void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force);
+FTXUI_C_API void ftxui_app_force_handle_ctrl_z(ftxui_app_handle_t app, bool force);
 
 // --- App Operations ---
 
 /**
  * @brief Post a closure to be executed on the main loop thread. Safe to call from any thread.
  */
-void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_app_post(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Post an event to the main loop. The event is copied.
  */
-void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event);
+FTXUI_C_API void ftxui_app_post_event(ftxui_app_handle_t app, ftxui_event_handle_t event);
 
 /**
  * @brief Execute callback with the terminal temporarily restored to its original state.
  */
-void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_app_with_restored_io(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Return the currently active app handle, or NULL if none is running.
  */
-ftxui_app_handle_t ftxui_app_active();
+FTXUI_C_API ftxui_app_handle_t ftxui_app_active(void);
 
 /**
  * @brief Request an animation frame; causes the component to re-render.
  */
-void ftxui_app_request_animation_frame(ftxui_app_handle_t app);
+FTXUI_C_API void ftxui_app_request_animation_frame(ftxui_app_handle_t app);
 
 // --- Terminal Info (via App) ---
 
 /**
  * @brief Return the terminal name. Pointer is valid until the app is destroyed. Do not free.
  */
-const char* ftxui_app_terminal_name(ftxui_app_handle_t app);
+FTXUI_C_API const char* ftxui_app_terminal_name(ftxui_app_handle_t app);
 
 /**
  * @brief Return the terminal version number.
  */
-int ftxui_app_terminal_version(ftxui_app_handle_t app);
+FTXUI_C_API int ftxui_app_terminal_version(ftxui_app_handle_t app);
 
 /**
  * @brief Return the terminal emulator name. Pointer is valid until the app is destroyed. Do not free.
  */
-const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app);
+FTXUI_C_API const char* ftxui_app_terminal_emulator_name(ftxui_app_handle_t app);
 
 /**
  * @brief Return the terminal emulator version string. Pointer is valid until the app is destroyed. Do not free.
  */
-const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app);
+FTXUI_C_API const char* ftxui_app_terminal_emulator_version(ftxui_app_handle_t app);
 
 /**
  * @brief Return the terminal capabilities as a malloc'd int array. Sets *count to the number of elements.
  * The caller must free() the returned pointer. Returns NULL if there are no capabilities.
  */
-int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count);
+FTXUI_C_API int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count);
 
 // --- Mouse Capture ---
 
@@ -195,24 +248,24 @@ int* ftxui_app_terminal_capabilities(ftxui_app_handle_t app, int* count);
  * @brief Try to capture the mouse exclusively. Returns NULL if already captured.
  * Destroy the handle with ftxui_captured_mouse_destroy to release the capture.
  */
-ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app);
+FTXUI_C_API ftxui_captured_mouse_handle_t ftxui_app_capture_mouse(ftxui_app_handle_t app);
 
 /**
  * @brief Release a captured mouse handle obtained from ftxui_app_capture_mouse.
  */
-void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle);
+FTXUI_C_API void ftxui_captured_mouse_destroy(ftxui_captured_mouse_handle_t handle);
 
 // --- Selection ---
 
 /**
  * @brief Registers a callback invoked whenever the terminal text selection changes.
  */
-void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_app_selection_change(ftxui_app_handle_t app, void (*callback)(void*), void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Returns the currently selected text. Caller must free() the returned string.
  */
-char* ftxui_app_get_selection(ftxui_app_handle_t app);
+FTXUI_C_API char* ftxui_app_get_selection(ftxui_app_handle_t app);
 
 // =============================================================================
 // §2  Terminal  (ftxui/screen/terminal.hpp)
@@ -243,48 +296,48 @@ typedef struct {
 /**
  * @brief Returns the current terminal width in columns.
  */
-int ftxui_terminal_width();
+FTXUI_C_API int ftxui_terminal_width(void);
 
 /**
  * @brief Returns the current terminal height in rows.
  */
-int ftxui_terminal_height();
+FTXUI_C_API int ftxui_terminal_height(void);
 
 /**
  * @brief Set the fallback terminal size used when auto-detection fails.
  */
-void ftxui_terminal_set_fallback_size(int w, int h);
+FTXUI_C_API void ftxui_terminal_set_fallback_size(int w, int h);
 
 /**
  * @brief Return the global terminal color support level.
  */
-ftxui_terminal_color_t ftxui_terminal_color_support(void);
+FTXUI_C_API ftxui_terminal_color_t ftxui_terminal_color_support(void);
 
 /**
  * @brief Override the global terminal color support level.
  */
-void ftxui_terminal_set_color_support(ftxui_terminal_color_t color);
+FTXUI_C_API void ftxui_terminal_set_color_support(ftxui_terminal_color_t color);
 
 /**
  * @brief Return the current terminal quirks as a flat struct.
  */
-ftxui_quirks_t ftxui_terminal_get_quirks(void);
+FTXUI_C_API ftxui_quirks_t ftxui_terminal_get_quirks(void);
 
 /**
  * @brief Apply terminal quirks from a flat struct.
  */
-void ftxui_terminal_set_quirks(ftxui_quirks_t quirks);
+FTXUI_C_API void ftxui_terminal_set_quirks(ftxui_quirks_t quirks);
 
 // =============================================================================
 // §3  Loop  (ftxui/component/loop.hpp)
 // =============================================================================
 
 
-ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component);
-bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop);
-void ftxui_loop_run_once(ftxui_loop_handle_t loop);
-void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop);
-void ftxui_loop_destroy(ftxui_loop_handle_t loop);
+FTXUI_C_API ftxui_loop_handle_t ftxui_loop_create(ftxui_app_handle_t app, ftxui_component_handle_t component);
+FTXUI_C_API bool ftxui_loop_has_quitted(ftxui_loop_handle_t loop);
+FTXUI_C_API void ftxui_loop_run_once(ftxui_loop_handle_t loop);
+FTXUI_C_API void ftxui_loop_run_once_blocking(ftxui_loop_handle_t loop);
+FTXUI_C_API void ftxui_loop_destroy(ftxui_loop_handle_t loop);
 
 // =============================================================================
 // §4  Color  (ftxui/screen/color.hpp)
@@ -559,40 +612,40 @@ typedef enum {
 /**
  * @brief Creates a default (transparent) Color object.
  */
-ftxui_color_handle_t ftxui_color_default();
+FTXUI_C_API ftxui_color_handle_t ftxui_color_default(void);
 /**
  * @brief Creates a Color object from RGB values.
  */
-ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_rgb(uint8_t r, uint8_t g, uint8_t b);
 /**
  * @brief Creates a Color object from RGBA values.
  */
-ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 /**
  * @brief Creates a Color object from HSV values (h, s, v each 0-255).
  */
-ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_hsv(uint8_t h, uint8_t s, uint8_t v);
 /**
  * @brief Creates a Color object from HSVA values.
  */
-ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a);
-ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index);
-ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index);
-ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_hsva(uint8_t h, uint8_t s, uint8_t v, uint8_t a);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_palette1(ftxui_palette1_t index);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_palette16(ftxui_palette16_t index);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_palette256(ftxui_palette256_t index);
 /**
  * @brief Creates a Color object from a raw 256-color palette index (0-255).
  */
-ftxui_color_handle_t ftxui_color_palette256_raw(int index);
-ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b);
-ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
-bool ftxui_color_is_opaque(ftxui_color_handle_t color);
-bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
-bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_palette256_raw(int index);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_interpolate(float t, ftxui_color_handle_t a, ftxui_color_handle_t b);
+FTXUI_C_API ftxui_color_handle_t ftxui_color_blend(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+FTXUI_C_API bool ftxui_color_is_opaque(ftxui_color_handle_t color);
+FTXUI_C_API bool ftxui_color_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
+FTXUI_C_API bool ftxui_color_not_equals(ftxui_color_handle_t lhs, ftxui_color_handle_t rhs);
 /**
  * @brief Returns a string representation of the color. The returned string must be freed using free().
  */
-char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color);
-void ftxui_color_destroy(ftxui_color_handle_t color);
+FTXUI_C_API char* ftxui_color_print(ftxui_color_handle_t color, bool is_background_color);
+FTXUI_C_API void ftxui_color_destroy(ftxui_color_handle_t color);
 
 // =============================================================================
 // §5  Color Info  (ftxui/screen/color_info.hpp)
@@ -612,46 +665,46 @@ typedef struct {
 
 // Returns a flat row-major array of (num_rows * max_cols) entries.
 // Entries with index_256 == -1 are padding.
-// Caller must call ftxui_color_info_free() on the returned pointer.
-ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols);
-void ftxui_color_info_free(ftxui_color_info_t* data);
+// Caller must call ftxui_color_info_free(void) on the returned pointer.
+FTXUI_C_API ftxui_color_info_t* ftxui_color_info_sorted_2d(int* num_rows, int* max_cols);
+FTXUI_C_API void ftxui_color_info_free(ftxui_color_info_t* data);
 
 // Returns color info for a single Palette256 or Palette16 entry by value.
 // The name pointer is valid for the lifetime of the program.
-ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index);
-ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index);
+FTXUI_C_API ftxui_color_info_t ftxui_color_info_get_256(ftxui_palette256_t index);
+FTXUI_C_API ftxui_color_info_t ftxui_color_info_get_16(ftxui_palette16_t index);
 
 // =============================================================================
 // §6  Linear Gradient  (ftxui/dom/linear_gradient.hpp)
 // =============================================================================
 
 
-ftxui_linear_gradient_handle_t ftxui_linear_gradient_create();
-void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient);
-void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle);
-void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color);
-void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position);
-ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
-ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
+FTXUI_C_API ftxui_linear_gradient_handle_t ftxui_linear_gradient_create(void);
+FTXUI_C_API void ftxui_linear_gradient_destroy(ftxui_linear_gradient_handle_t gradient);
+FTXUI_C_API void ftxui_linear_gradient_angle(ftxui_linear_gradient_handle_t gradient, float angle);
+FTXUI_C_API void ftxui_linear_gradient_stop(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_linear_gradient_stop_at(ftxui_linear_gradient_handle_t gradient, ftxui_color_handle_t color, float position);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_color_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_bgcolor_linear_gradient(ftxui_element_handle_t element, ftxui_linear_gradient_handle_t gradient);
 
 // =============================================================================
 // §7  Elements — Basic  (ftxui/dom/elements.hpp)
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_text(const char* text);
-ftxui_element_handle_t ftxui_element_vtext(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text);
-ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text);
-ftxui_element_handle_t ftxui_element_empty();
-ftxui_element_handle_t ftxui_element_filler();
-ftxui_element_handle_t ftxui_element_gauge(double value);
-ftxui_element_handle_t ftxui_element_gauge_left(double value);
-ftxui_element_handle_t ftxui_element_gauge_right(double value);
-ftxui_element_handle_t ftxui_element_gauge_up(double value);
-ftxui_element_handle_t ftxui_element_gauge_down(double value);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_text(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_vtext(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_paragraph(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_paragraph_align_left(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_paragraph_align_right(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_paragraph_align_center(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_paragraph_align_justify(const char* text);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_empty(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_filler(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gauge(double value);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gauge_left(double value);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gauge_right(double value);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gauge_up(double value);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gauge_down(double value);
 
 typedef enum {
     FTXUI_DIRECTION_UP,
@@ -660,47 +713,47 @@ typedef enum {
     FTXUI_DIRECTION_RIGHT,
 } ftxui_direction_t;
 
-ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction);
-ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gauge_direction(double value, ftxui_direction_t direction);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_spinner(int charset_index, int image_index);
 
 // The callback fills `output` (pre-allocated array of `width` ints) with graph values [0..height].
 typedef void (*ftxui_graph_callback_t)(int width, int height, int* output, void* userdata);
-ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_graph(ftxui_graph_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 /**
  * @brief Wraps an element with a window title bar.
  */
-ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_window(ftxui_element_handle_t title, ftxui_element_handle_t element);
 
-void ftxui_element_destroy(ftxui_element_handle_t element);
+FTXUI_C_API void ftxui_element_destroy(ftxui_element_handle_t element);
 
 // =============================================================================
 // §8  Elements — Separators
 // =============================================================================
 // NOTE: ftxui_border_style_t is declared above in the forward-declared types block.
 
-ftxui_element_handle_t ftxui_element_separator();
-ftxui_element_handle_t ftxui_element_separator_light();
-ftxui_element_handle_t ftxui_element_separator_dashed();
-ftxui_element_handle_t ftxui_element_separator_heavy();
-ftxui_element_handle_t ftxui_element_separator_double();
-ftxui_element_handle_t ftxui_element_separator_empty();
-ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style);
-ftxui_element_handle_t ftxui_element_separator_character(const char* character);
-ftxui_element_handle_t ftxui_element_separator_hselector(float left, float right, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
-ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_light(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_dashed(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_heavy(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_double(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_empty(void);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_styled(ftxui_border_style_t style);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_character(const char* character);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_hselector(float left, float right, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_separator_vselector(float up, float down, ftxui_color_handle_t unselected_color, ftxui_color_handle_t selected_color);
 
 // =============================================================================
 // §9  Elements — Layout
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int count);
-ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count);
-ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count);
-ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count);
-ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_hbox(ftxui_element_handle_t* elements, int count);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_vbox(ftxui_element_handle_t* elements, int count);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_dbox(ftxui_element_handle_t* elements, int count);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_hflow(ftxui_element_handle_t* elements, int count);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_vflow(ftxui_element_handle_t* elements, int count);
 // cells: flat row-major array; row_lengths[i] = number of cells in row i
-ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_gridbox(ftxui_element_handle_t* cells, int total_cells, int* row_lengths, int row_count);
 
 typedef enum {
     FTXUI_FLEXBOX_DIRECTION_ROW,
@@ -752,49 +805,49 @@ typedef struct {
     int gap_y;
 } ftxui_flexbox_config_t;
 
-ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_flexbox(ftxui_element_handle_t* elements, int count, ftxui_flexbox_config_t config);
 
 // =============================================================================
 // §10  Elements — Styling Decorators
 // =============================================================================
 
 // --- Border decorators ---
-ftxui_element_handle_t ftxui_element_border(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_light(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_dashed(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_heavy(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_double(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_rounded(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t element, ftxui_border_style_t style);
-ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t element, ftxui_border_style_t style, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_border_colored(ftxui_element_handle_t element, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_light(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_dashed(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_heavy(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_double(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_rounded(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_empty(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_styled(ftxui_element_handle_t element, ftxui_border_style_t style);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_styled_color(ftxui_element_handle_t element, ftxui_border_style_t style, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_border_colored(ftxui_element_handle_t element, ftxui_color_handle_t color);
 
 // --- Text style decorators ---
-ftxui_element_handle_t ftxui_element_bold(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_italic(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_inverted(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_underlined(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_underlined_double(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_bold(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_dim(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_italic(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_inverted(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_underlined(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_underlined_double(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_blink(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_strikethrough(ftxui_element_handle_t element);
 
 // --- Color decorators ---
-ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_bgcolor(ftxui_element_handle_t element, ftxui_color_handle_t color);
 
 // --- Misc decorators ---
-ftxui_element_handle_t ftxui_element_automerge(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_hyperlink(const char* link, ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_clear_under(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_automerge(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_hyperlink(const char* link, ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_clear_under(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_nothing(ftxui_element_handle_t element);
 
 // --- Selection style ---
 // Represents the style of a terminal cell. Used by selectionStyle and canvas stylizer callbacks.
 // When used as a canvas stylizer: foreground_color and background_color are temporary handles —
 // the callback may read or replace them (setting to NULL leaves the color unchanged), but must NOT
-// call ftxui_color_destroy() on the handles it receives.
+// call ftxui_color_destroy(void) on the handles it receives.
 typedef struct {
     bool blink;
     bool bold;
@@ -811,11 +864,11 @@ typedef struct {
 
 typedef void (*ftxui_cell_style_callback_t)(ftxui_cell_t* cell, void* userdata);
 
-ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
-ftxui_element_handle_t ftxui_element_selection_style(ftxui_element_handle_t element, ftxui_cell_style_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_selection_style_reset(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_selection_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_selection_background_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_selection_foreground_color(ftxui_element_handle_t element, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_selection_style(ftxui_element_handle_t element, ftxui_cell_style_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 // =============================================================================
 // §11  Elements — Flex / Size
@@ -838,114 +891,114 @@ typedef enum {
     FTXUI_CONSTRAINT_EQUAL,          ///< The size must be equal to the given value.
 } ftxui_constraint_t;
 
-ftxui_element_handle_t ftxui_element_flex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_flex_shrink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xflex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xflex_grow(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xflex_shrink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yflex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yflex_grow(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yflex_shrink(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_notflex(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_flex(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_flex_grow(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_flex_shrink(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_xflex(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_xflex_grow(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_xflex_shrink(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_yflex(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_yflex_grow(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_yflex_shrink(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_notflex(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
 
 // =============================================================================
 // §12  Elements — Frame / Scroll / Focus
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_xframe(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_yframe(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_hscroll_indicator(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_block(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_block_blinking(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_bar(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_bar_blinking(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y);
-ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_xframe(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_yframe(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_vscroll_indicator(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_hscroll_indicator(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_block(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_block_blinking(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_bar(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_bar_blinking(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
 
 // =============================================================================
 // §13  Elements — Alignment & Utility
 // =============================================================================
 
-ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element);
-ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_hcenter(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_vcenter(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_center(ftxui_element_handle_t element);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_align_right(ftxui_element_handle_t element);
 
 // =============================================================================
 // §14  Canvas  (ftxui/dom/canvas.hpp)
 // =============================================================================
 
 
-ftxui_canvas_handle_t ftxui_canvas_create(int width, int height);
-void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas);
-int ftxui_canvas_width(ftxui_canvas_handle_t canvas);
-int ftxui_canvas_height(ftxui_canvas_handle_t canvas);
-void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text);
-void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_canvas_handle_t ftxui_canvas_create(int width, int height);
+FTXUI_C_API void ftxui_canvas_destroy(ftxui_canvas_handle_t canvas);
+FTXUI_C_API int ftxui_canvas_width(ftxui_canvas_handle_t canvas);
+FTXUI_C_API int ftxui_canvas_height(ftxui_canvas_handle_t canvas);
+FTXUI_C_API void ftxui_canvas_draw_text(ftxui_canvas_handle_t canvas, int x, int y, const char* text);
+FTXUI_C_API void ftxui_canvas_draw_text_color(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_color_handle_t color);
 // Draws text with a stylizer callback. The callback may modify cell style/color fields.
 // The foreground_color and background_color fields in ftxui_cell_t are temporary handles —
 // the callback may read or replace them (setting to NULL leaves the color unchanged), but must NOT
-// call ftxui_color_destroy() on the handles it receives.
-void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata);
+// call ftxui_color_destroy(void) on the handles it receives.
+FTXUI_C_API void ftxui_canvas_draw_text_stylizer(ftxui_canvas_handle_t canvas, int x, int y, const char* text, ftxui_cell_style_callback_t cb, void* userdata);
 // Boolean point drawing (braille characters)
-void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value);
-void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_point_on(ftxui_canvas_handle_t canvas, int x, int y);
+FTXUI_C_API void ftxui_canvas_draw_point_off(ftxui_canvas_handle_t canvas, int x, int y);
+FTXUI_C_API void ftxui_canvas_draw_point_toggle(ftxui_canvas_handle_t canvas, int x, int y);
+FTXUI_C_API void ftxui_canvas_draw_point(ftxui_canvas_handle_t canvas, int x, int y, bool value);
+FTXUI_C_API void ftxui_canvas_draw_point_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_point_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
 // Line drawing (color=NULL draws with default color)
-void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_point_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_point_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
 // Circle drawing — point (braille)
-void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_point_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+FTXUI_C_API void ftxui_canvas_draw_point_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_point_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_point_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+FTXUI_C_API void ftxui_canvas_draw_point_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_point_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
 // Ellipse drawing — point (braille)
-void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_point_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+FTXUI_C_API void ftxui_canvas_draw_point_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_point_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_point_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+FTXUI_C_API void ftxui_canvas_draw_point_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_point_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
 // Boolean block drawing (box characters)
-void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y);
-void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value);
-void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_block_on(ftxui_canvas_handle_t canvas, int x, int y);
+FTXUI_C_API void ftxui_canvas_draw_block_off(ftxui_canvas_handle_t canvas, int x, int y);
+FTXUI_C_API void ftxui_canvas_draw_block_toggle(ftxui_canvas_handle_t canvas, int x, int y);
+FTXUI_C_API void ftxui_canvas_draw_block(ftxui_canvas_handle_t canvas, int x, int y, bool value);
+FTXUI_C_API void ftxui_canvas_draw_block_color(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_block_stylizer(ftxui_canvas_handle_t canvas, int x, int y, bool value, ftxui_cell_style_callback_t cb, void* userdata);
 // Line drawing — block (color=NULL draws with default color)
-void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_block_line(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_block_line_stylizer(ftxui_canvas_handle_t canvas, int x1, int y1, int x2, int y2, ftxui_cell_style_callback_t cb, void* userdata);
 // Circle drawing — block
-void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
-void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_block_circle(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+FTXUI_C_API void ftxui_canvas_draw_block_circle_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_block_circle_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_block_circle_filled(ftxui_canvas_handle_t canvas, int x, int y, int radius);
+FTXUI_C_API void ftxui_canvas_draw_block_circle_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_block_circle_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int radius, ftxui_cell_style_callback_t cb, void* userdata);
 // Ellipse drawing — block
-void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
-void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
-void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
-void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_block_ellipse(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+FTXUI_C_API void ftxui_canvas_draw_block_ellipse_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_block_ellipse_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_draw_block_ellipse_filled(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry);
+FTXUI_C_API void ftxui_canvas_draw_block_ellipse_filled_color(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_canvas_draw_block_ellipse_filled_stylizer(ftxui_canvas_handle_t canvas, int x, int y, int rx, int ry, ftxui_cell_style_callback_t cb, void* userdata);
 // Apply a style decorator at a cell position (x must be multiple of 2, y multiple of 4)
-void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata);
+FTXUI_C_API void ftxui_canvas_style(ftxui_canvas_handle_t canvas, int x, int y, ftxui_cell_style_callback_t cb, void* userdata);
 // Creates an element from the canvas. Caller keeps ownership of the canvas handle.
-ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas);
+FTXUI_C_API ftxui_element_handle_t ftxui_element_canvas_ref(ftxui_canvas_handle_t canvas);
 
 // =============================================================================
 // §15  Table  (ftxui/dom/table.hpp)
@@ -959,55 +1012,55 @@ typedef ftxui_element_handle_t (*ftxui_decorator_callback_t)(
     ftxui_element_handle_t element, void* userdata);
 
 // cells is a flat row-major array of (rows * cols) strings
-ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols);
-void ftxui_table_destroy(ftxui_table_handle_t table);
-ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table);
+FTXUI_C_API ftxui_table_handle_t ftxui_table_create(const char** cells, int rows, int cols);
+FTXUI_C_API void ftxui_table_destroy(ftxui_table_handle_t table);
+FTXUI_C_API ftxui_element_handle_t ftxui_table_render(ftxui_table_handle_t table);
 
 // =============================================================================
 // §16  Table Selection
 // =============================================================================
 
-ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table);
-ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row);
-ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to);
-ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col);
-ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row);
-ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to);
-ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max);
-void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_all(ftxui_table_handle_t table);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_row(ftxui_table_handle_t table, int row);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_rows(ftxui_table_handle_t table, int from, int to);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_column(ftxui_table_handle_t table, int col);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_cell(ftxui_table_handle_t table, int col, int row);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_columns(ftxui_table_handle_t table, int from, int to);
+FTXUI_C_API ftxui_table_selection_handle_t ftxui_table_select_rectangle(ftxui_table_handle_t table, int col_min, int col_max, int row_min, int row_max);
+FTXUI_C_API void ftxui_table_selection_destroy(ftxui_table_selection_handle_t sel);
 
 // Border / separator styling
-void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color);
-void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
-void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_border(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_border_color(ftxui_table_selection_handle_t sel, ftxui_border_style_t style, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_table_selection_border_left(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_border_right(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_border_top(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_border_bottom(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_separator(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
+FTXUI_C_API void ftxui_table_selection_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_border_style_t style);
 
 // Generic decorator callbacks
-void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
-void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_border(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_border_left(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_border_right(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_border_top(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_border_bottom(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_separator(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_separator_vertical(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_separator_horizontal(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_cells(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_cells_alternate_row(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
+FTXUI_C_API void ftxui_table_selection_decorate_cells_alternate_column(ftxui_table_selection_handle_t sel, ftxui_decorator_callback_t cb, void* userdata, int modulo, int shift, ftxui_destructor_t destructor);
 
 // Convenience shortcuts
-void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel);
-void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel);
-void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color);
-void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset);
+FTXUI_C_API void ftxui_table_selection_decorate_bold(ftxui_table_selection_handle_t sel);
+FTXUI_C_API void ftxui_table_selection_decorate_cells_align_right(ftxui_table_selection_handle_t sel);
+FTXUI_C_API void ftxui_table_selection_decorate_cells_color(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color);
+FTXUI_C_API void ftxui_table_selection_decorate_cells_color_alternate_row(ftxui_table_selection_handle_t sel, ftxui_color_handle_t color, int modulo, int offset);
 
 // =============================================================================
 // §17  Components — Basic
@@ -1046,27 +1099,27 @@ typedef struct {
 } ftxui_button_option_t;
 
 // --- Button ---
-ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor);
-ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options);
-ftxui_button_option_t ftxui_button_option_simple();
-ftxui_button_option_t ftxui_button_option_ascii();
-ftxui_button_option_t ftxui_button_option_border();
-ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t background, ftxui_color_handle_t foreground, ftxui_color_handle_t background_active, ftxui_color_handle_t foreground_active);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_button(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_button_with_options(const char* label, void (*on_click)(void*), void* userdata, ftxui_destructor_t destructor, ftxui_button_option_t options);
+FTXUI_C_API ftxui_button_option_t ftxui_button_option_simple(void);
+FTXUI_C_API ftxui_button_option_t ftxui_button_option_ascii(void);
+FTXUI_C_API ftxui_button_option_t ftxui_button_option_border(void);
+FTXUI_C_API ftxui_button_option_t ftxui_button_option_animated(ftxui_color_handle_t background, ftxui_color_handle_t foreground, ftxui_color_handle_t background_active, ftxui_color_handle_t foreground_active);
 
 // --- Checkbox ---
-ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked);
-ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_checkbox(const char* label, bool* checked);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_checkbox_with_change(const char* label, bool* checked, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
 
 // --- Input ---
 // String handle wraps a mutable std::string for use with Input components.
 
-ftxui_string_handle_t ftxui_string_create(const char* initial);
-const char* ftxui_string_get(ftxui_string_handle_t str);
-void ftxui_string_set(ftxui_string_handle_t str, const char* value);
-void ftxui_string_destroy(ftxui_string_handle_t str);
+FTXUI_C_API ftxui_string_handle_t ftxui_string_create(const char* initial);
+FTXUI_C_API const char* ftxui_string_get(ftxui_string_handle_t str);
+FTXUI_C_API void ftxui_string_set(ftxui_string_handle_t str, const char* value);
+FTXUI_C_API void ftxui_string_destroy(ftxui_string_handle_t str);
 
-ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder);
-ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_input(ftxui_string_handle_t content, const char* placeholder);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_input_password(ftxui_string_handle_t content, const char* placeholder);
 
 // Input with full options. NULL pointer fields use FTXUI defaults.
 typedef struct {
@@ -1082,35 +1135,35 @@ typedef struct {
     void*                 on_enter_userdata;
     ftxui_destructor_t    on_enter_destructor;
 } ftxui_input_options_t;
-ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_input_with_options(ftxui_input_options_t opts);
 
 // --- Toggle ---
-ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_toggle(const char** entries, int count, int* selected);
 
 // --- Slider ---
-ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_slider(const char* label, int* value, int min, int max, int increment);
 // Slider with on_change callback (no label). Use ftxui_component_slider for a labeled variant.
-ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
-ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
-ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction);
-ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment);
-ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_slider_int_with_change(int* value, int min, int max, int increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_slider_float_with_change(float* value, float min, float max, float increment, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_slider_int_direction(int* value, int min, int max, int increment, ftxui_direction_t direction);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_slider_float(const char* label, float* value, float min, float max, float increment);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_slider_float_direction(float* value, float min, float max, float increment, ftxui_direction_t direction, ftxui_color_handle_t color_active, ftxui_color_handle_t color_inactive);
 
 // --- Radiobox ---
-ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_radiobox(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_radiobox_with_change(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* userdata, ftxui_destructor_t destructor);
 
 // --- Menu ---
-ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_userdata, ftxui_destructor_t on_change_destructor, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor);
-ftxui_component_handle_t ftxui_component_menu_entry(const char* label);
-ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors);
-ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected);
-ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu_with_callbacks(const char** entries, int count, int* selected, ftxui_callback_t on_change, void* on_change_userdata, ftxui_destructor_t on_change_destructor, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu_entry(const char* label);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu_entry_animated(const char* label, ftxui_animated_colors_option_t animated_colors);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu_horizontal(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu_horizontal_animated(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_menu_toggle(const char** entries, int count, int* selected);
 
 // --- Dropdown ---
-ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int count, int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_dropdown(const char** entries, int count, int* selected);
 
 typedef ftxui_element_handle_t (*ftxui_dropdown_transform_callback_t)(
     bool open,
@@ -1120,7 +1173,7 @@ typedef ftxui_element_handle_t (*ftxui_dropdown_transform_callback_t)(
 );
 
 // entry_transform may be null (uses default radiobox entry rendering).
-ftxui_component_handle_t ftxui_component_dropdown_custom(
+FTXUI_C_API ftxui_component_handle_t ftxui_component_dropdown_custom(
     const char** entries, int count, int* selected,
     ftxui_dropdown_transform_callback_t transform, void* transform_userdata, ftxui_destructor_t transform_destructor,
     ftxui_button_transform_t entry_transform, void* entry_transform_userdata, ftxui_destructor_t entry_transform_destructor
@@ -1130,52 +1183,52 @@ ftxui_component_handle_t ftxui_component_dropdown_custom(
 // §18  Components — Containers
 // =============================================================================
 
-ftxui_component_handle_t ftxui_component_container_vertical();
-ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector);
-ftxui_component_handle_t ftxui_component_container_horizontal();
-ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector);
-ftxui_component_handle_t ftxui_component_container_tab(int* selected);
-ftxui_component_handle_t ftxui_component_container_stacked();
-void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_handle_t child);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_container_vertical(void);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_container_vertical_focused(int* selector);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_container_horizontal(void);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_container_horizontal_focused(int* selector);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_container_tab(int* selected);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_container_stacked(void);
+FTXUI_C_API void ftxui_container_add(ftxui_component_handle_t container, ftxui_component_handle_t child);
 
 // --- Component Focus & Active State API ---
-bool ftxui_component_focused(ftxui_component_handle_t component);
-bool ftxui_component_active(ftxui_component_handle_t component);
-void ftxui_component_take_focus(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t component);
-void ftxui_component_set_active_child(ftxui_component_handle_t component, ftxui_component_handle_t child);
+FTXUI_C_API bool ftxui_component_focused(ftxui_component_handle_t component);
+FTXUI_C_API bool ftxui_component_active(ftxui_component_handle_t component);
+FTXUI_C_API void ftxui_component_take_focus(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_active_child(ftxui_component_handle_t component);
+FTXUI_C_API void ftxui_component_set_active_child(ftxui_component_handle_t component, ftxui_component_handle_t child);
 
 // =============================================================================
 // §19  Components — Advanced
 // =============================================================================
 
 // --- Renderer variants ---
-ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_renderer(ftxui_component_handle_t component, ftxui_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 typedef ftxui_element_handle_t (*ftxui_focused_render_callback_t)(bool focused, void* userdata);
-ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_renderer_focusable(ftxui_focused_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
 typedef ftxui_element_handle_t (*ftxui_inner_render_callback_t)(ftxui_element_handle_t inner, void* userdata);
-ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_renderer_with_inner(ftxui_component_handle_t component, ftxui_inner_render_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
-ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_element_handle_t ftxui_component_render(ftxui_component_handle_t component);
 
 /**
  * @brief Creates a component that calls on_poll on every render frame. C-only; no FTXUI equivalent.
  */
-ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t app, void (*on_poll)(void*), void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_poll(ftxui_app_handle_t app, void (*on_poll)(void*), void* userdata, ftxui_destructor_t destructor);
 
 // --- Visibility ---
-ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show);
-ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show);
-ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata, ftxui_destructor_t destructor);
-ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_collapsible(const char* label, ftxui_component_handle_t child, bool* show);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_maybe(ftxui_component_handle_t child, const bool* show);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_maybe_fn(ftxui_component_handle_t child, ftxui_predicate_callback_t predicate, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_modal(ftxui_component_handle_t main, ftxui_component_handle_t modal, const bool* show_modal);
 
 // --- ResizableSplit ---
-ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
-ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
-ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
-ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_resizable_split_left(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_resizable_split_right(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_resizable_split_top(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_resizable_split_bottom(ftxui_component_handle_t main, ftxui_component_handle_t back, int* main_size);
 
 typedef ftxui_element_handle_t (*ftxui_separator_func_t)(void* userdata);
 
@@ -1191,7 +1244,7 @@ typedef struct {
     ftxui_destructor_t separator_destructor;
 } ftxui_resizable_split_option_t;
 
-ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_resizable_split_opt(ftxui_resizable_split_option_t option);
 
 // --- Window ---
 typedef struct {
@@ -1207,47 +1260,47 @@ typedef struct {
     int height_default;
 } ftxui_window_options_t;
 
-ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_window(ftxui_window_options_t options);
 
 // --- Hoverable ---
-ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover);
-ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor, ftxui_callback_t on_leave, void* on_leave_userdata, ftxui_destructor_t on_leave_destructor);
-ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_hoverable(ftxui_component_handle_t component, bool* hover);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_hoverable_callbacks(ftxui_component_handle_t component, ftxui_callback_t on_enter, void* on_enter_userdata, ftxui_destructor_t on_enter_destructor, ftxui_callback_t on_leave, void* on_leave_userdata, ftxui_destructor_t on_leave_destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_hoverable_change(ftxui_component_handle_t component, void (*on_change)(bool hovered, void* userdata), void* userdata, ftxui_destructor_t destructor);
 
 // --- CatchEvent ---
 typedef bool (*ftxui_catch_event_callback_t)(ftxui_event_handle_t event, void* userdata);
-ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_catch_event(ftxui_component_handle_t component, ftxui_catch_event_callback_t callback, void* userdata, ftxui_destructor_t destructor);
 
-void ftxui_component_destroy(ftxui_component_handle_t component);
+FTXUI_C_API void ftxui_component_destroy(ftxui_component_handle_t component);
 
 // =============================================================================
 // §20  Component Decorators
 // =============================================================================
 
-ftxui_component_handle_t ftxui_component_border(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_border_light(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_border_dashed(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_border_heavy(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_border_double(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_border_rounded(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_border_empty(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_bold(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_inverted(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_underlined(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_blink(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_strikethrough(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_color(ftxui_component_handle_t component, ftxui_color_handle_t color);
-ftxui_component_handle_t ftxui_component_bgcolor(ftxui_component_handle_t component, ftxui_color_handle_t color);
-ftxui_component_handle_t ftxui_component_vscroll_indicator(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_frame(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_flex(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_hcenter(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_vcenter(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_center(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t component);
-ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t component, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border_light(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border_dashed(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border_heavy(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border_double(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border_rounded(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_border_empty(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_bold(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_dim(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_inverted(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_underlined(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_blink(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_strikethrough(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_nothing(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_color(ftxui_component_handle_t component, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_bgcolor(ftxui_component_handle_t component, ftxui_color_handle_t color);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_vscroll_indicator(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_frame(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_flex(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_hcenter(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_vcenter(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_center(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_align_right(ftxui_component_handle_t component);
+FTXUI_C_API ftxui_component_handle_t ftxui_component_set_size(ftxui_component_handle_t component, ftxui_width_or_height_t width_or_height, ftxui_constraint_t constraint_type, int value);
 
 // =============================================================================
 // §21  Events  (ftxui/component/event.hpp)
@@ -1271,83 +1324,83 @@ typedef enum {
 } ftxui_mouse_motion_t;
 
 // Basic event accessors
-const char* ftxui_event_input(ftxui_event_handle_t event);
-const char* ftxui_event_debug_string(ftxui_event_handle_t event);
-bool        ftxui_event_is_character(ftxui_event_handle_t event);
-const char* ftxui_event_character(ftxui_event_handle_t event);
+FTXUI_C_API const char* ftxui_event_input(ftxui_event_handle_t event);
+FTXUI_C_API const char* ftxui_event_debug_string(ftxui_event_handle_t event);
+FTXUI_C_API bool        ftxui_event_is_character(ftxui_event_handle_t event);
+FTXUI_C_API const char* ftxui_event_character(ftxui_event_handle_t event);
 
 // Mouse event accessors (all return 0/false if !is_mouse())
-bool                 ftxui_event_is_mouse(ftxui_event_handle_t event);
-int                  ftxui_event_mouse_x(ftxui_event_handle_t event);
-int                  ftxui_event_mouse_y(ftxui_event_handle_t event);
-ftxui_mouse_button_t ftxui_event_mouse_button(ftxui_event_handle_t event);
-ftxui_mouse_motion_t ftxui_event_mouse_motion(ftxui_event_handle_t event);
-bool                 ftxui_event_mouse_shift(ftxui_event_handle_t event);
-bool                 ftxui_event_mouse_meta(ftxui_event_handle_t event);
-bool                 ftxui_event_mouse_control(ftxui_event_handle_t event);
+FTXUI_C_API bool                 ftxui_event_is_mouse(ftxui_event_handle_t event);
+FTXUI_C_API int                  ftxui_event_mouse_x(ftxui_event_handle_t event);
+FTXUI_C_API int                  ftxui_event_mouse_y(ftxui_event_handle_t event);
+FTXUI_C_API ftxui_mouse_button_t ftxui_event_mouse_button(ftxui_event_handle_t event);
+FTXUI_C_API ftxui_mouse_motion_t ftxui_event_mouse_motion(ftxui_event_handle_t event);
+FTXUI_C_API bool                 ftxui_event_mouse_shift(ftxui_event_handle_t event);
+FTXUI_C_API bool                 ftxui_event_mouse_meta(ftxui_event_handle_t event);
+FTXUI_C_API bool                 ftxui_event_mouse_control(ftxui_event_handle_t event);
 
 // Cursor-position and cursor-shape events (return 0 if guard is false)
-bool ftxui_event_is_cursor_position(ftxui_event_handle_t event);
-int  ftxui_event_cursor_x(ftxui_event_handle_t event);
-int  ftxui_event_cursor_y(ftxui_event_handle_t event);
-bool ftxui_event_is_cursor_shape(ftxui_event_handle_t event);
-int  ftxui_event_cursor_shape(ftxui_event_handle_t event);
+FTXUI_C_API bool ftxui_event_is_cursor_position(ftxui_event_handle_t event);
+FTXUI_C_API int  ftxui_event_cursor_x(ftxui_event_handle_t event);
+FTXUI_C_API int  ftxui_event_cursor_y(ftxui_event_handle_t event);
+FTXUI_C_API bool ftxui_event_is_cursor_shape(ftxui_event_handle_t event);
+FTXUI_C_API int  ftxui_event_cursor_shape(ftxui_event_handle_t event);
 
 // Terminal-info events
-bool        ftxui_event_is_terminal_name_version(ftxui_event_handle_t event);
-const char* ftxui_event_terminal_name(ftxui_event_handle_t event);
-int         ftxui_event_terminal_version(ftxui_event_handle_t event);
-bool        ftxui_event_is_terminal_emulator(ftxui_event_handle_t event);
-const char* ftxui_event_terminal_emulator_name(ftxui_event_handle_t event);
-const char* ftxui_event_terminal_emulator_version(ftxui_event_handle_t event);
-bool        ftxui_event_is_terminal_capabilities(ftxui_event_handle_t event);
+FTXUI_C_API bool        ftxui_event_is_terminal_name_version(ftxui_event_handle_t event);
+FTXUI_C_API const char* ftxui_event_terminal_name(ftxui_event_handle_t event);
+FTXUI_C_API int         ftxui_event_terminal_version(ftxui_event_handle_t event);
+FTXUI_C_API bool        ftxui_event_is_terminal_emulator(ftxui_event_handle_t event);
+FTXUI_C_API const char* ftxui_event_terminal_emulator_name(ftxui_event_handle_t event);
+FTXUI_C_API const char* ftxui_event_terminal_emulator_version(ftxui_event_handle_t event);
+FTXUI_C_API bool        ftxui_event_is_terminal_capabilities(ftxui_event_handle_t event);
 // Returns malloc'd int[count]; caller must free(). NULL if not a capabilities event.
-int*        ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count);
+FTXUI_C_API int*        ftxui_event_terminal_capabilities(ftxui_event_handle_t event, int* count);
 
 // Lifecycle for factory-created (caller-owned) event handles
-void ftxui_event_destroy(ftxui_event_handle_t event);
-bool ftxui_event_equal(ftxui_event_handle_t a, ftxui_event_handle_t b);
+FTXUI_C_API void ftxui_event_destroy(ftxui_event_handle_t event);
+FTXUI_C_API bool ftxui_event_equal(ftxui_event_handle_t a, ftxui_event_handle_t b);
 
 // Named-constant factory functions — caller must ftxui_event_destroy the result
-ftxui_event_handle_t ftxui_event_arrow_left(void);
-ftxui_event_handle_t ftxui_event_arrow_right(void);
-ftxui_event_handle_t ftxui_event_arrow_up(void);
-ftxui_event_handle_t ftxui_event_arrow_down(void);
-ftxui_event_handle_t ftxui_event_arrow_left_ctrl(void);
-ftxui_event_handle_t ftxui_event_arrow_right_ctrl(void);
-ftxui_event_handle_t ftxui_event_arrow_up_ctrl(void);
-ftxui_event_handle_t ftxui_event_arrow_down_ctrl(void);
-ftxui_event_handle_t ftxui_event_backspace(void);
-ftxui_event_handle_t ftxui_event_delete(void);
-ftxui_event_handle_t ftxui_event_return(void);
-ftxui_event_handle_t ftxui_event_escape(void);
-ftxui_event_handle_t ftxui_event_tab(void);
-ftxui_event_handle_t ftxui_event_tab_reverse(void);
-ftxui_event_handle_t ftxui_event_insert(void);
-ftxui_event_handle_t ftxui_event_home(void);
-ftxui_event_handle_t ftxui_event_end(void);
-ftxui_event_handle_t ftxui_event_page_up(void);
-ftxui_event_handle_t ftxui_event_page_down(void);
-ftxui_event_handle_t ftxui_event_f1(void);
-ftxui_event_handle_t ftxui_event_f2(void);
-ftxui_event_handle_t ftxui_event_f3(void);
-ftxui_event_handle_t ftxui_event_f4(void);
-ftxui_event_handle_t ftxui_event_f5(void);
-ftxui_event_handle_t ftxui_event_f6(void);
-ftxui_event_handle_t ftxui_event_f7(void);
-ftxui_event_handle_t ftxui_event_f8(void);
-ftxui_event_handle_t ftxui_event_f9(void);
-ftxui_event_handle_t ftxui_event_f10(void);
-ftxui_event_handle_t ftxui_event_f11(void);
-ftxui_event_handle_t ftxui_event_f12(void);
-ftxui_event_handle_t ftxui_event_custom(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_left(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_right(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_up(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_down(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_left_ctrl(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_right_ctrl(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_up_ctrl(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_arrow_down_ctrl(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_backspace(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_delete(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_return(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_escape(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_tab(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_tab_reverse(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_insert(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_home(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_end(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_page_up(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_page_down(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f1(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f2(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f3(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f4(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f5(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f6(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f7(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f8(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f9(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f10(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f11(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_f12(void);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_custom(void);
 
 // General event construction — caller must ftxui_event_destroy the result
-ftxui_event_handle_t ftxui_event_character_from_char(char c);
-ftxui_event_handle_t ftxui_event_special(const char* input);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_character_from_char(char c);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_special(const char* input);
 // c must be a-z or A-Z; returns NULL otherwise
-ftxui_event_handle_t ftxui_event_ctrl_char(char c);
-ftxui_event_handle_t ftxui_event_alt_char(char c);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_ctrl_char(char c);
+FTXUI_C_API ftxui_event_handle_t ftxui_event_alt_char(char c);
 
 // =============================================================================
 // §22  Animation  (ftxui/component/animation.hpp)
@@ -1358,7 +1411,7 @@ ftxui_event_handle_t ftxui_event_alt_char(char c);
 /**
  * @brief Returns the easing function for a given type.
  */
-ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type);
+FTXUI_C_API ftxui_easing_function_t ftxui_easing_function_get(ftxui_easing_function_type_t type);
 
 #ifdef __cplusplus
 }
