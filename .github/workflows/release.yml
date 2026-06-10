@@ -56,9 +56,15 @@ jobs:
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ftxui-c-*.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ github.ref_name }}
+          REPO=${{ github.repository }}
+          if ! gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$REPO" --title "$TAG" --generate-notes
+          fi
+          gh release upload "$TAG" --repo "$REPO" --clobber ftxui-c-*.tar.gz
 
   update-tap:
     needs: release
