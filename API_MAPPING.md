@@ -293,6 +293,7 @@ Symbols in the C API that have no direct FTXUI equivalent (helper types, handle 
 | `focusCursorBarBlinking(element)` | `ftxui_element_focus_cursor_bar_blinking(element)` | |
 | `focusCursorUnderline(element)` | `ftxui_element_focus_cursor_underline(element)` | |
 | `focusCursorUnderlineBlinking(element)` | `ftxui_element_focus_cursor_underline_blinking(element)` | |
+| `reflect(Box&)(element)` | `ftxui_element_reflect(element, box)` | Box created with `ftxui_box_create`; see §23 |
 
 ---
 
@@ -624,3 +625,8 @@ These types and functions exist in the C API with no direct FTXUI C++ equivalent
 | `ftxui_loop_destroy(loop)` | Free loop handle |
 | `ftxui_color_info_free(data)` | Free color info array |
 | `ftxui_cell_t` | Flat struct mirroring `Cell` for use in callbacks |
+| `ftxui_box_handle_t` | Heap-allocated `ftxui::Box` for use with `ftxui_element_reflect`; the layout writes the element's assigned rectangle into it on every render |
+| `ftxui_box_create()` | Allocate a box (empty until first render: width/height are 0) |
+| `ftxui_box_destroy(box)` | Free; must outlive every element reflecting into it |
+| `ftxui_box_x_min/x_max/y_min/y_max(box)` | Inclusive coordinates assigned in the most recent render |
+| `ftxui_box_width/height(box)` | Assigned columns/rows in the most recent render; 0 before the first render |
