@@ -11,6 +11,7 @@
 #include <ftxui/dom/flexbox_config.hpp>
 #include <ftxui/dom/linear_gradient.hpp>
 #include <ftxui/dom/table.hpp>
+#include <ftxui/screen/box.hpp>
 #include <ftxui/screen/cell.hpp>
 #include <ftxui/screen/color.hpp>
 #include <ftxui/screen/color_info.hpp>
@@ -1283,6 +1284,41 @@ ftxui_element_handle_t ftxui_element_frame(ftxui_element_handle_t element) { try
         return std::move(el) | ftxui::frame;
     });
 } catch (...) { ftxui_c_fatal_exception("ftxui_element_frame"); }
+}
+
+ftxui_box_handle_t ftxui_box_create(void) { try {
+    auto* box = new ftxui::Box();
+    box->x_max = -1;  // empty until the first render writes real coordinates
+    box->y_max = -1;
+    return static_cast<ftxui_box_handle_t>(box);
+} catch (...) { ftxui_c_fatal_exception("ftxui_box_create"); }
+}
+
+void ftxui_box_destroy(ftxui_box_handle_t box) {
+    delete static_cast<ftxui::Box*>(box);
+}
+
+int ftxui_box_x_min(ftxui_box_handle_t box) { return static_cast<ftxui::Box*>(box)->x_min; }
+int ftxui_box_x_max(ftxui_box_handle_t box) { return static_cast<ftxui::Box*>(box)->x_max; }
+int ftxui_box_y_min(ftxui_box_handle_t box) { return static_cast<ftxui::Box*>(box)->y_min; }
+int ftxui_box_y_max(ftxui_box_handle_t box) { return static_cast<ftxui::Box*>(box)->y_max; }
+
+int ftxui_box_width(ftxui_box_handle_t box) {
+    auto* b = static_cast<ftxui::Box*>(box);
+    return std::max(0, b->x_max - b->x_min + 1);
+}
+
+int ftxui_box_height(ftxui_box_handle_t box) {
+    auto* b = static_cast<ftxui::Box*>(box);
+    return std::max(0, b->y_max - b->y_min + 1);
+}
+
+ftxui_element_handle_t ftxui_element_reflect(ftxui_element_handle_t element, ftxui_box_handle_t box) { try {
+    auto* box_ptr = static_cast<ftxui::Box*>(box);
+    return apply_element_modifier(element, [box_ptr](ftxui::Element el) {
+        return std::move(el) | ftxui::reflect(*box_ptr);
+    });
+} catch (...) { ftxui_c_fatal_exception("ftxui_element_reflect"); }
 }
 
 ftxui_element_handle_t ftxui_element_set_size(ftxui_element_handle_t element, ftxui_width_or_height_t width_or_height_enum, ftxui_constraint_t constraint_type, int value) { try {

@@ -78,6 +78,7 @@ typedef void* ftxui_canvas_handle_t;
 typedef void* ftxui_table_handle_t;
 typedef void* ftxui_table_selection_handle_t;
 typedef void* ftxui_string_handle_t;
+typedef void* ftxui_box_handle_t;
 #else
 typedef struct ftxui_app_wrapper* ftxui_app_handle_t;
 typedef struct ftxui_component* ftxui_component_handle_t;
@@ -91,6 +92,7 @@ typedef struct ftxui_canvas* ftxui_canvas_handle_t;
 typedef struct ftxui_table* ftxui_table_handle_t;
 typedef struct ftxui_table_selection* ftxui_table_selection_handle_t;
 typedef struct ftxui_string* ftxui_string_handle_t;
+typedef struct ftxui_box* ftxui_box_handle_t;
 #endif
 
 typedef ftxui_element_handle_t (*ftxui_render_callback_t)(void* userdata);
@@ -921,6 +923,38 @@ FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_underline(ftxui_el
 FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_cursor_underline_blinking(ftxui_element_handle_t element);
 FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_position(ftxui_element_handle_t element, int x, int y);
 FTXUI_C_API ftxui_element_handle_t ftxui_element_focus_position_relative(ftxui_element_handle_t element, float x, float y);
+
+/**
+ * @brief Creates a box for use with ftxui_element_reflect. After each render
+ * it holds the rectangle (inclusive coordinates) that the layout assigned to
+ * the reflected element. Starts out empty: width/height are 0 until the
+ * element has been rendered once. Free with ftxui_box_destroy.
+ *
+ * The box handle is BORROWED by ftxui_element_reflect and must stay alive
+ * for as long as elements reflecting into it can still be rendered.
+ */
+FTXUI_C_API ftxui_box_handle_t ftxui_box_create(void);
+FTXUI_C_API void ftxui_box_destroy(ftxui_box_handle_t box);
+FTXUI_C_API int ftxui_box_x_min(ftxui_box_handle_t box);
+FTXUI_C_API int ftxui_box_x_max(ftxui_box_handle_t box);
+FTXUI_C_API int ftxui_box_y_min(ftxui_box_handle_t box);
+FTXUI_C_API int ftxui_box_y_max(ftxui_box_handle_t box);
+
+/**
+ * @brief Number of columns/rows the layout assigned to the reflected element
+ * in the most recent render; 0 if it has not been rendered yet.
+ */
+FTXUI_C_API int ftxui_box_width(ftxui_box_handle_t box);
+FTXUI_C_API int ftxui_box_height(ftxui_box_handle_t box);
+
+/**
+ * @brief Wraps the element so that, during each render, the layout rectangle
+ * assigned to it is written into the given box (ftxui::reflect). To measure
+ * the space available in a slot rather than the element's natural size,
+ * combine with a flex decorator (e.g. yflex) so the element is stretched to
+ * fill the slot.
+ */
+FTXUI_C_API ftxui_element_handle_t ftxui_element_reflect(ftxui_element_handle_t element, ftxui_box_handle_t box);
 
 // =============================================================================
 // §13  Elements — Alignment & Utility
